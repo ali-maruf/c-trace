@@ -389,3 +389,24 @@ the 600 kWp solar and both planted errors are unchanged, and only cooling-driven
 15,466.6 to 15,297.9 tCO2e. `pipeline.run` uses the factory's NASA POWER series by default whenever the profile has a
 location, so the prototype, the Streamlit fallback and the API see the same weather. Under this, v1 and v2 both flag exactly
 2025-09 and 2026-07.
+
+### D56. One Vercel project with two Services, the API at the repo root
+Vercel Services host the Next.js app (`apps/web`) and the FastAPI app in one project, with a top-level rewrite sending
+`/api/*` to the API. The browser only calls same-origin `/api`, so there is no CORS and no API URL in the bundle. The API
+service's root is the repository root, because the API depends on the `ctrace` workspace package and on `data/` and
+`models/`; Vercel's Python builder installs the uv workspace straight from `uv.lock` (tested with `vercel build`). `asgi.py`
+is the entrypoint. Services forward the original path, so the API keeps `CTRACE_API_PREFIX=/api`. Region bom1 (Mumbai).
+
+### D57. The Streamlit fallback's dependencies are an optional extra
+streamlit, plotly and their dependencies (pyarrow alone is 165 MB) took the API bundle to 752 MB, over Vercel's 500 MB.
+They move to the `demo` extra: `make setup`, CI and `requirements.txt` (Streamlit Community Cloud) use `--all-extras`, and
+the API image and the Vercel function don't install them. The API bundle is about 375 MB; Vercel installs the part that
+doesn't fit its base bundle at cold start (measured: 3.4 s).
+
+### D58. Serverless-safe startup
+On Vercel the lifespan runs, but a failure there kills the process, so a missing `DATABASE_URL` gave an opaque 500. Startup
+(migrate, factor and KB sync, pool) is now idempotent, runs from lifespan and, as a fallback, on the first request, and a
+failure is reported: `/api/health` says `database: error`, other routes answer 503 with a clear message. Migrations run on
+startup under the existing advisory lock, so the Supabase credential lives only in Vercel's environment. Transaction-mode
+poolers are supported with `CTRACE_DB_PREPARE=0` (no server-side prepared statements). Weather and LLM caches skip writing
+on a read-only disk.

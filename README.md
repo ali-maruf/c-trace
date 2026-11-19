@@ -7,6 +7,10 @@ reductions with statistics, so factories can earn from cutting emissions.
 > Core rule: **the AI reads and explains; deterministic code calculates.** Every tonne carries an audit trail back to a
 > source-document hash and a cited emission factor.
 
+**Live demo:** https://c-trace-xi.vercel.app → *Try the live demo* (a private sandbox with a fictional factory; no sign-up).
+Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · Finals script: [docs/PITCH_DEMO.md](docs/PITCH_DEMO.md) ·
+Model card: [models/MODEL_CARD.md](models/MODEL_CARD.md) · Decisions: [docs/DECISIONS.md](docs/DECISIONS.md)
+
 ## Quick start (about 2 minutes, no API key needed)
 
 ```bash
@@ -17,10 +21,11 @@ make demo           # seeds the fictional demo factory into Postgres: 65 bills t
 make api            # REST API, docs at http://localhost:8000/docs  (token: make dev-token)
 make worker         # background worker for new uploads
 make demo-streamlit # offline fallback UI: open http://localhost:8501 and click "Load demo factory"
+cd apps/web && npm ci && npm run dev   # web app on http://localhost:3000 (calls the API on :8000)
 ```
 Run `make help` for every target. The repository is a uv workspace: `packages/ctrace` (core and the
 `ctrace.store` Postgres layer), `services/api` (FastAPI), `services/worker` (job runner) and
-`apps/demo-streamlit` (demo UI). Without `DATABASE_URL`, development uses an embedded Postgres 16 + pgvector
+`apps/demo-streamlit` (offline fallback UI), plus the Next.js web app in `apps/web`. Without `DATABASE_URL`, development uses an embedded Postgres 16 + pgvector
 (pgserver) in `.pgdata/`. With Docker: `make compose-up`. API reference: [docs/API.md](docs/API.md).
 
 Optional: copy `.env.example` to `.env` and set `ANTHROPIC_API_KEY` to turn on Claude vision extraction (photos,
@@ -41,6 +46,7 @@ any figure that isn't in the verified data is rejected.
    section), as PDF and JSON, with methodology, factors and the trace ledger in the appendix.
 
 ## Architecture
+Full diagrams and trust boundaries: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 ```
 bills (PDF / photo) ─► ctrace.extraction ─► human review ─► ctrace.calculate ─► ledger (trace_id, doc hash, factor, maths)
                          rules | Claude vision                                        │
@@ -80,8 +86,16 @@ production + profile ───────────────────�
 - The Ember intensity is lifecycle-based. For statutory filings, use the official national grid emission factor and
   supplier-declared gas calorific values.
 
-## Deploy a live demo link (free)
-Push this folder to GitHub (the trained model in `models/` is about 10 MB and is included), then go to share.streamlit.io →
-New app → pick `apps/demo-streamlit/streamlit_app.py` (it installs from `requirements.txt`, exported from `uv.lock`). If your
-scikit-learn version differs from the one used for training, run `make train` again (about 10 seconds). Or use Docker:
-`docker build -t c-trace . && docker run -p 8501:8501 c-trace`.
+## Deploy
+**Vercel + Supabase (the hosted demo).** `vercel.json` defines two Services in one project: the web app (`apps/web`) and the
+API (repo root, `asgi.py`), with `/api/*` routed to the API ([docs/plans/phase-10.md](docs/plans/phase-10.md)).
+1. Create a Supabase project (region South Asia / Mumbai) and copy *Connect → Session pooler* (URI, port 5432).
+2. `npx vercel link`, then add `DATABASE_URL` with `npx vercel env add DATABASE_URL production`, plus `CTRACE_ENV=production`,
+   `CTRACE_STORAGE=db`, `CTRACE_INLINE_JOBS=1`, `CTRACE_MIGRATE_ON_START=1`, `CTRACE_API_PREFIX=/api`,
+   `CTRACE_DB_PREPARE=0`, `CTRACE_DB_POOL_MIN=0`, `CTRACE_DB_POOL_MAX=3`.
+3. `npx vercel deploy --prod`. Migrations and factor sync run on the first request; `/api/health` reports the database.
+4. Optional: `ANTHROPIC_API_KEY` for Claude extraction and narratives; `SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL` and
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY` for real sign-in (without them the hosted app offers the demo sandbox only).
+
+**Streamlit Community Cloud (offline fallback).** New app → `apps/demo-streamlit/streamlit_app.py`; it installs from
+`requirements.txt` (exported from `uv.lock` with the `demo` extra). Or Docker: `make compose-up`.
