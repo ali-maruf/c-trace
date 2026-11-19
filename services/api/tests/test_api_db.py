@@ -480,3 +480,68 @@ def test_reduction_proof_sign_off_and_certificate(client, owner_conn, token):
     client.post(f"/v1/factories/{fid}/reductions/compute", headers=h)   # recompute: signed proof is kept
     current = client.get(f"/v1/factories/{fid}/reductions", headers=h).json()
     assert sum(r["status"] == "signed" for r in current) == 1 and {r["status"] for r in current} == {"signed", "draft"}
+
+
+# ------------------------------------------------------------------ live demo sandboxes, onboarding, inline jobs
+def test_demo_sandbox_is_private_and_contained(client, owner_conn, demo, monkeypatch):
+    r = client.post("/v1/demo/start")
+    assert r.status_code == 200, r.text
+    d = r.json()
+    h = {"Authorization": f"Bearer {d['token']}"}
+    me = client.get("/v1/me", headers=h).json()
+    assert me["org_id"] == d["org_id"] and me["role"] == "owner"
+    t = client.get(f"/v1/factories/{d['factory_id']}/summary", headers=h).json()["totals"]
+    assert t["total_tco2e"] == pytest.approx(15466.6004, abs=1e-3)          # same fictional data as the seed
+    second = client.post("/v1/demo/start").json()
+    assert second["org_id"] != d["org_id"]                                 # every visitor gets their own sandbox
+    assert client.get(f"/v1/factories/{second['factory_id']}", headers=h).status_code == 404
+
+    # even if a demo identity were made a member of a real organisation, its token cannot reach it
+    uid = client.get("/v1/me", headers=h).json()["user_id"]
+    owner_conn.execute("insert into memberships (org_id, user_id, role) values (%s, %s, 'viewer')", (demo["org_id"], uid))
+    assert client.get("/v1/factories", headers={**h, "X-C-Trace-Org": demo["org_id"]}).status_code == 403
+    monkeypatch.setenv("CTRACE_PLATFORM_ADMIN_EMAILS", me["email"])
+    assert client.post("/v1/admin/factors", headers=h, json={}).status_code in (403, 422)
+    assert client.post("/v1/admin/factors", headers=h, json={
+        "kgco2e_per_unit": 0.5, "valid_from": "2030-01-01", "source": "x" * 10, "source_url": "https://example.org"}).status_code == 403
+    monkeypatch.setenv("CTRACE_DEMO_ENABLED", "0")
+    assert client.post("/v1/demo/start").status_code == 404
+
+
+def test_expired_demo_sandboxes_are_purged(client, owner_conn):
+    d = client.post("/v1/demo/start").json()
+    owner_conn.execute("update organizations set created_at = now() - interval '25 hours' where id = %s", (d["org_id"],))
+    client.post("/v1/demo/start")
+    assert owner_conn.execute("select count(*) n from organizations where id = %s", (d["org_id"],)).fetchone()["n"] == 0
+
+
+def test_onboarding_creates_account_once(client, token):
+    uid = str(uuid.uuid4())
+    h = auth(token(uid, f"{uid[:8]}@c-trace.test"))
+    assert client.get("/v1/me", headers=h).status_code == 403
+    r = client.post("/v1/onboarding", headers=h, json={"organization_name": "Test Apparel Ltd. (fictional)", "display_name": "Test"})
+    assert r.status_code == 201 and r.json()["role"] == "owner"
+    assert client.get("/v1/me", headers=h).json()["role"] == "owner"
+    assert client.post("/v1/onboarding", headers=h, json={"organization_name": "Again"}).status_code == 409
+    demo_token = client.post("/v1/demo/start").json()["token"]
+    assert client.post("/v1/onboarding", headers={"Authorization": f"Bearer {demo_token}"},
+                       json={"organization_name": "Nope"}).status_code == 403
+
+
+def test_inline_jobs_read_bills_in_the_upload_request(client, small_factory, monkeypatch):
+    monkeypatch.setenv("CTRACE_INLINE_JOBS", "1")
+    p = config.BILLS_DIR / "2025-11_natural_gas.pdf"
+    r = client.post(f"/v1/factories/{small_factory['factory_id']}/documents", headers=small_factory["headers"],
+                    files=[("files", (p.name, p.read_bytes(), "application/pdf"))]).json()[0]
+    assert r["job"]["status"] == "done" and r["job"]["result"]["ledger_rows"] >= 1
+
+
+def test_db_storage_backend(client, small_factory, monkeypatch):
+    monkeypatch.setenv("CTRACE_STORAGE", "db")
+    monkeypatch.setenv("CTRACE_INLINE_JOBS", "1")
+    p = config.BILLS_DIR / "2025-12_natural_gas.pdf"
+    r = client.post(f"/v1/factories/{small_factory['factory_id']}/documents", headers=small_factory["headers"],
+                    files=[("files", (p.name, p.read_bytes(), "application/pdf"))]).json()[0]
+    assert r["job"]["status"] == "done"
+    f = client.get(f"/v1/documents/{r['document']['id']}/file", headers=small_factory["headers"])
+    assert f.content == p.read_bytes()

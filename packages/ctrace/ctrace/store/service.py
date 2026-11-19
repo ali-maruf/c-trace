@@ -74,10 +74,11 @@ def ensure_user(conn: Conn, user_id: str, email: str, display_name: str | None =
                  (user_id, email, display_name))
 
 
-def create_organization(conn: Conn, name: str, owner_user_id: str) -> str:
+def create_organization(conn: Conn, name: str, owner_user_id: str, is_demo: bool = False) -> str:
     """Owner connection. New organisation with the given user as owner."""
     with conn.transaction():
-        row = conn.execute("insert into organizations (name) values (%s) returning id", (name,)).fetchone()
+        row = conn.execute("insert into organizations (name, is_demo, created_by) values (%s, %s, %s) returning id",
+                           (name, is_demo, owner_user_id)).fetchone()
         assert row is not None
         org_id = str(row["id"])
         conn.execute("insert into memberships (org_id, user_id, role) values (%s, %s, 'owner')", (org_id, owner_user_id))
@@ -87,7 +88,7 @@ def create_organization(conn: Conn, name: str, owner_user_id: str) -> str:
 def memberships_for(conn: Conn, user_id: str) -> list[dict]:
     """Owner connection: which organisations a verified identity belongs to (used before an org is chosen)."""
     return [clean(r) for r in conn.execute(
-        "select m.org_id, m.role, o.name as org_name from memberships m join organizations o on o.id = m.org_id "
+        "select m.org_id, m.role, o.name as org_name, o.is_demo from memberships m join organizations o on o.id = m.org_id "
         "where m.user_id = %s order by o.name", (user_id,))]
 
 
@@ -193,7 +194,7 @@ def ingest_document(conn: Conn, user_id: str | None, factory_id: str, file_name:
         return IngestResult(clean(existing), True, None,
                             f"Already uploaded on {at.day} {at:%b %Y} as {existing['file_name']}")
     key = document_key(factory["org_id"], factory_id, sha, media_type)
-    (storage or default_storage()).put(key, data)
+    (storage or default_storage(conn)).put(key, data)
     row = conn.execute(
         "insert into documents (org_id, factory_id, storage_path, sha256, file_name, media_type, size_bytes, uploaded_by) "
         "values (ctrace_current_org(), %s, %s, %s, %s, %s, %s, %s) returning *",
@@ -225,7 +226,7 @@ def get_document(conn: Conn, document_id: str) -> dict:
 
 def document_bytes(conn: Conn, document_id: str, storage: Storage | None = None) -> tuple[dict, bytes]:
     d = get_document(conn, document_id)
-    return d, (storage or default_storage()).get(d["storage_path"])
+    return d, (storage or default_storage(conn)).get(d["storage_path"])
 
 
 @handler("extract_document", own_transactions=True)

@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import io
+import os
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Annotated
+from typing import Annotated, Any
 
 import pandas as pd
 from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, Request, UploadFile, status
@@ -13,12 +14,24 @@ from fastapi.responses import Response
 from ctrace import certificate
 from ctrace.public_data import provenance
 from ctrace.simulator import periods as period_range
+from ctrace.store import demo as demo_store
 from ctrace.store import reductions as red
 from ctrace.store import registry, service
 from ctrace.store import verification as verif
 from ctrace.store.db import Conn, org_tx
+from ctrace.store.jobs import run_pending
 
-from .auth import MANAGE_ROLES, RAW_DOCUMENT_ROLES, READ_ROLES, REVIEW_ROLES, Principal, current_principal, require_platform_admin
+from .auth import (
+    MANAGE_ROLES,
+    RAW_DOCUMENT_ROLES,
+    READ_ROLES,
+    REVIEW_ROLES,
+    Principal,
+    current_principal,
+    require_platform_admin,
+    verified_claims,
+)
+from .ratelimit import SlidingWindowPerHour
 from .schemas import (
     PERIOD,
     AssetIn,
@@ -26,6 +39,7 @@ from .schemas import (
     FactoryIn,
     InterventionIn,
     OfficialFactorIn,
+    OnboardingIn,
     ProductionIn,
     RejectIn,
     ResolveIn,
@@ -129,12 +143,56 @@ async def upload_documents(request: Request, p: Auth, factory_id: str, files: An
         if len(data) > MAX_UPLOAD_BYTES:
             raise HTTPException(413, f"{f.filename} is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB")
         payloads.append((f.filename or "upload", data, (f.content_type or "application/octet-stream").split(";")[0]))
-    out = []
+    out: list[dict[str, Any]] = []
     with scoped(request, p, MANAGE_ROLES, "upload documents") as conn:
         for name, data, media_type in payloads:
             r = service.ingest_document(conn, p.user_id, factory_id, name, data, media_type)
             out.append({"document": r.document, "duplicate": r.duplicate, "job_id": r.job_id, "message": r.message})
+    new_jobs = [o["job_id"] for o in out if o["job_id"]]
+    if new_jobs and inline_jobs():  # hosts without a worker (serverless): read the bills inside this request
+        with request.app.state.pool.connection() as conn:
+            run_pending(conn, "api-inline", max_jobs=len(new_jobs) + 5)
+        with scoped(request, p) as conn:
+            for o in out:
+                if o["job_id"]:
+                    o["job"] = service.job_status(conn, int(o["job_id"]))
     return out
+
+
+def inline_jobs() -> bool:
+    return os.getenv("CTRACE_INLINE_JOBS", "1") == "1"
+
+
+# ------------------------------------------------------------------ live demo and onboarding
+_demo_limiter = SlidingWindowPerHour()
+
+
+@router.post("/demo/start", tags=["auth"], summary="Start a private live-demo sandbox (fictional data) and get a demo token")
+def start_demo(request: Request) -> dict:
+    if os.getenv("CTRACE_DEMO_ENABLED", "1") != "1":
+        raise HTTPException(404, "The live demo is not enabled on this deployment")
+    ip = (request.headers.get("x-forwarded-for") or (request.client.host if request.client else "unknown")).split(",")[0].strip()
+    _demo_limiter.check(ip)
+    with request.app.state.pool.connection() as conn:
+        out = demo_store.start_sandbox(conn)
+    return {k: out[k] for k in ("token", "expires_in", "org_id", "factory_id")}
+
+
+@router.post("/onboarding", tags=["auth"], status_code=status.HTTP_201_CREATED,
+             summary="First sign-in: create your C-Trace account and organisation")
+def onboarding(request: Request, body: OnboardingIn, claims: Annotated[dict, Depends(verified_claims)]) -> dict:
+    if claims.get("iss") == demo_store.DEMO_ISSUER:
+        raise HTTPException(403, "Demo sessions cannot create organisations")
+    uid, email = str(claims["sub"]), claims.get("email")
+    if not email:
+        raise HTTPException(422, "Your sign-in has no email address")
+    with request.app.state.pool.connection() as conn:
+        if service.memberships_for(conn, uid):
+            raise HTTPException(409, "You already belong to an organisation")
+        with conn.transaction():
+            service.ensure_user(conn, uid, email, body.display_name)
+            org_id = service.create_organization(conn, body.organization_name, uid)
+    return {"org_id": org_id, "role": "owner"}
 
 
 @router.get("/factories/{factory_id}/documents", tags=["documents"])

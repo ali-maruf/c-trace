@@ -40,3 +40,23 @@ def limit_llm(user_id: str) -> None:
     """Only counts when the LLM path is actually enabled."""
     if config.llm_enabled():
         llm_limiter.check(user_id)
+
+
+class SlidingWindowPerHour(SlidingWindow):
+    """Same mechanism with a one-hour window (e.g. 10 demo sandboxes per client IP per hour)."""
+
+    def __init__(self, per_hour: int = 10):
+        super().__init__(per_hour)
+        self.window_s = 3600
+
+    def check(self, key: str) -> None:
+        now = time.monotonic()
+        with self._lock:
+            q = self._hits[key]
+            while q and now - q[0] > self.window_s:
+                q.popleft()
+            if len(q) >= self.per_minute:
+                retry = int(self.window_s - (now - q[0])) + 1
+                raise HTTPException(429, f"Too many demo sandboxes from this address; retry in {retry // 60 + 1} min",
+                                    headers={"Retry-After": str(retry)})
+            q.append(now)

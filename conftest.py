@@ -83,6 +83,7 @@ def token(dev_keys: bytes) -> Callable[..., str]:
 def client(db_url: str, storage_dir: Path, dev_keys: bytes):  # type: ignore[no-untyped-def]
     from fastapi.testclient import TestClient
     os.environ["DATABASE_URL"] = db_url
+    os.environ["CTRACE_INLINE_JOBS"] = "0"   # tests drain the queue explicitly; test_inline_jobs turns it on
     from ctrace_api.main import app
     try:
         with TestClient(app) as c:

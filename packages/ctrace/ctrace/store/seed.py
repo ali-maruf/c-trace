@@ -46,30 +46,35 @@ def seed_demo(conn: Conn, reset: bool = False, storage: Storage | None = None) -
     if reset:
         conn.execute("delete from organizations where name = %s", (DEMO_ORG_NAME,))
 
-    profile = json.loads((config.SAMPLES_DIR / "factory_profile.json").read_text())
     service.ensure_user(conn, DEMO_USER_ID, DEMO_EMAIL, "Demo manager (fictional)")
     org_id = service.create_organization(conn, DEMO_ORG_NAME, DEMO_USER_ID)
+    fid = load_demo_factory(conn, org_id, DEMO_USER_ID, storage)
+    counts = run_pending(conn, "seed")
+    return {"org_id": org_id, "factory_id": fid, "user_id": DEMO_USER_ID, "created": True, "jobs": counts}
 
-    with org_tx(conn, org_id, DEMO_USER_ID):
-        factory = service.create_factory(conn, DEMO_USER_ID, {
-            "name": profile["name"], "location": profile["location"], "lat": DEMO_LAT, "lon": DEMO_LON,
+
+def load_demo_factory(conn: Conn, org_id: str, user_id: str, storage: Storage | None = None, name: str | None = None) -> str:
+    """Owner connection. Create the fictional demo factory in `org_id` and queue its 65 bills (same path as an upload).
+    The caller drains the queue."""
+    profile = json.loads((config.SAMPLES_DIR / "factory_profile.json").read_text())
+    with org_tx(conn, org_id, user_id):
+        factory = service.create_factory(conn, user_id, {
+            "name": name or profile["name"], "location": profile["location"], "lat": DEMO_LAT, "lon": DEMO_LON,
             "factory_type": profile["factory_type"], "workers": profile["workers"],
             "has_wet_processing": bool(profile["has_wet_processing"]), "captive_gas_gen": bool(profile.get("captive_gas_gen", 0)),
         })
         fid = factory["id"]
         for s in profile.get("solar", []):
-            service.add_asset(conn, DEMO_USER_ID, fid, "solar", float(s["kwp"]), "kWp", s["from"])
+            service.add_asset(conn, user_id, fid, "solar", float(s["kwp"]), "kWp", s["from"])
         for iv in profile.get("interventions", []):
-            service.add_intervention(conn, DEMO_USER_ID, fid, iv["measure"], iv["from"])
+            service.add_intervention(conn, user_id, fid, iv["measure"], iv["from"])
         prod = pd.read_csv(config.SAMPLES_DIR / "production.csv")
-        service.upsert_production(conn, DEMO_USER_ID, fid, list(zip(prod.period, prod.pieces.astype(float), strict=True)),
+        service.upsert_production(conn, user_id, fid, list(zip(prod.period, prod.pieces.astype(float), strict=True)),
                                   "Fictional demo data: data/samples/production.csv")
         for path in sorted(config.BILLS_DIR.glob("*.pdf")):
-            service.ingest_document(conn, DEMO_USER_ID, fid, path.name, path.read_bytes(), "application/pdf", storage)
-
+            service.ingest_document(conn, user_id, fid, path.name, path.read_bytes(), "application/pdf", storage)
     sync_weather(conn, DEMO_LAT, DEMO_LON)
-    counts = run_pending(conn, "seed")
-    return {"org_id": org_id, "factory_id": fid, "user_id": DEMO_USER_ID, "created": True, "jobs": counts}
+    return fid
 
 
 def main() -> None:

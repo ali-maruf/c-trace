@@ -310,3 +310,24 @@ Proofs are stored as `draft`; recomputing supersedes drafts and keeps signed pro
 an owner, manager or reviewer, with a comment, and the signature is audit-logged. The PDF certificate is labelled
 "C-Trace verification statement — not a third-party assurance or carbon credit", shows DRAFT until signed, and lists every
 document it used by trace ID and hash.
+
+## Phase 7 prerequisites — demo access and serverless hosting
+
+### D46. Live demo sandboxes
+Judges and pilot prospects need to try C-Trace in seconds, without an account. `POST /v1/demo/start` creates a private
+organisation flagged `is_demo`, loads the fictional demo factory through the normal upload path, and returns a 6-hour
+token signed with an ES256 key the API generated and keeps in `app_secrets` (owner-only, no app-role access). The API
+accepts that issuer **only** for demo organisations, so a demo token cannot reach a real organisation even if a membership
+existed (tested). Demo identities can't create organisations or enter factors. Sandboxes are deleted after 24 hours, on
+the next start. Starts are limited to 10 per client IP per hour, per API instance. `CTRACE_DEMO_ENABLED=0` turns the demo off.
+
+### D47. Onboarding
+A verified Supabase identity without a membership calls `POST /v1/onboarding` (organisation name) and becomes its owner.
+Inviting members to an organisation comes with Settings (Phase 8).
+
+### D48. Serverless: inline jobs and Postgres storage
+Vercel has no long-running worker and no persistent disk. `CTRACE_INLINE_JOBS=1` (the default) reads newly uploaded bills
+inside the upload request; the worker remains the path for containers. `CTRACE_STORAGE=db` keeps original documents in
+`document_blobs` (org-scoped, RLS) instead of local files. The 4.5 MB request-body limit on Vercel Functions caps a single
+upload request; the UI sends files one per request. `CTRACE_API_PREFIX` mounts the API under a path (`/api`) for
+path-based routing.

@@ -19,7 +19,7 @@ import jwt
 from fastapi import Header, HTTPException, Request
 
 from ctrace import config
-from ctrace.store import service
+from ctrace.store import demo, service
 
 DEV_ISSUER = "c-trace-dev"
 AUDIENCE = "authenticated"
@@ -40,6 +40,7 @@ class Principal:
     email: str | None
     org_id: str
     role: str
+    is_demo: bool = False
 
     def require(self, roles: frozenset[str], action: str) -> None:
         if self.role not in roles:
@@ -65,13 +66,26 @@ def dev_public_key_path() -> Path:
     return Path(os.getenv("CTRACE_DEV_JWT_PUBLIC_KEY", str(DEV_PUBLIC_KEY)))
 
 
-def verify_token(token: str) -> dict:
+_demo_key_cache: dict[str, bytes] = {}
+
+
+def _demo_public_key(pool: object) -> bytes:
+    if "key" not in _demo_key_cache:
+        with pool.connection() as conn:  # type: ignore[attr-defined]
+            _demo_key_cache["key"] = demo.public_key(conn)
+    return _demo_key_cache["key"]
+
+
+def verify_token(token: str, pool: object | None = None) -> dict:
     try:
         issuer = jwt.decode(token, options={"verify_signature": False}).get("iss")
     except jwt.PyJWTError as exc:
         raise HTTPException(401, "Malformed access token") from exc
     sb = supabase_url()
     try:
+        if issuer == demo.DEMO_ISSUER and pool is not None:
+            return jwt.decode(token, _demo_public_key(pool), algorithms=["ES256"], audience=AUDIENCE, issuer=demo.DEMO_ISSUER,
+                              options={"require": ["exp", "sub", "iss", "aud"]})
         if sb and issuer == f"{sb}/auth/v1":
             key = _jwks_client().get_signing_key_from_jwt(token).key
             return jwt.decode(token, key, algorithms=["ES256", "RS256"], audience=AUDIENCE, issuer=issuer,
@@ -87,15 +101,22 @@ def verify_token(token: str) -> dict:
     raise HTTPException(401, "Access token issuer is not accepted by this C-Trace deployment")
 
 
-def current_principal(request: Request, authorization: str | None = Header(default=None),
-                      x_c_trace_org: str | None = Header(default=None, alias=ORG_HEADER)) -> Principal:
+def verified_claims(request: Request, authorization: str | None = Header(default=None)) -> dict:
+    """A verified token's claims, before any C-Trace membership is required (onboarding)."""
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(401, "Missing bearer token", headers={"WWW-Authenticate": "Bearer"})
-    claims = verify_token(authorization.split(" ", 1)[1].strip())
+    return verify_token(authorization.split(" ", 1)[1].strip(), request.app.state.pool)
+
+
+def current_principal(request: Request, authorization: str | None = Header(default=None),
+                      x_c_trace_org: str | None = Header(default=None, alias=ORG_HEADER)) -> Principal:
+    claims = verified_claims(request, authorization)
     user_id = str(claims["sub"])
     pool = request.app.state.pool
     with pool.connection() as conn:
         memberships = service.memberships_for(conn, user_id)
+    if claims.get("iss") == demo.DEMO_ISSUER:  # demo tokens reach demo sandboxes only
+        memberships = [m for m in memberships if m["is_demo"]]
     if not memberships:
         raise HTTPException(403, "This account has no C-Trace organisation yet")
     if x_c_trace_org:
@@ -106,7 +127,8 @@ def current_principal(request: Request, authorization: str | None = Header(defau
         chosen = memberships[0]
     else:
         raise HTTPException(400, f"You belong to several organisations; send the {ORG_HEADER} header")
-    return Principal(user_id=user_id, email=claims.get("email"), org_id=chosen["org_id"], role=chosen["role"])
+    return Principal(user_id=user_id, email=claims.get("email"), org_id=chosen["org_id"], role=chosen["role"],
+                     is_demo=bool(chosen.get("is_demo")))
 
 
 def platform_admin_emails() -> set[str]:
@@ -115,5 +137,5 @@ def platform_admin_emails() -> set[str]:
 
 def require_platform_admin(p: Principal) -> None:
     """Reference data (emission factors) is global, so only C-Trace platform admins may enter it."""
-    if not p.email or p.email.lower() not in platform_admin_emails():
+    if p.is_demo or not p.email or p.email.lower() not in platform_admin_emails():
         raise HTTPException(403, "Only C-Trace platform admins can enter official emission factors.")

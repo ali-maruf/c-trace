@@ -89,3 +89,8 @@ class ResolveIn(BaseModel):
 
 class SignIn(BaseModel):
     comment: str = Field(min_length=3, max_length=2000, description="What the reviewer checked before signing")
+
+
+class OnboardingIn(BaseModel):
+    organization_name: str = Field(min_length=2, max_length=200)
+    display_name: str | None = Field(default=None, max_length=120)

@@ -58,8 +58,9 @@ app = FastAPI(
     ],
 )
 app.add_middleware(RequestContextMiddleware)
-app.include_router(v1.router)
-app.include_router(stateless.router)
+API_PREFIX = os.getenv("CTRACE_API_PREFIX", "").rstrip("/")  # e.g. "/api" behind a path-based rewrite
+app.include_router(v1.router, prefix=API_PREFIX)
+app.include_router(stateless.router, prefix=API_PREFIX)
 
 
 @app.exception_handler(service.NotFound)
@@ -77,7 +78,7 @@ async def invalid(_: Request, exc: ValueError) -> JSONResponse:
     return JSONResponse({"detail": str(exc)}, status_code=422)
 
 
-@app.get("/health", tags=["auth"], summary="Liveness and dependency status (no auth)")
+@app.get(f"{API_PREFIX}/health", tags=["auth"], summary="Liveness and dependency status (no auth)")
 def health(request: Request) -> dict:
     db = "ok"
     try:
