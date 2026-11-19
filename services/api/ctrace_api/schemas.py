@@ -28,11 +28,15 @@ class AssetIn(BaseModel):
     from_period: str = Field(pattern=PERIOD)
 
 
+Carrier = Literal["natural_gas", "grid_electricity", "diesel"]
+
+
 class InterventionIn(BaseModel):
     measure: str = Field(min_length=1, max_length=300)
     from_period: str = Field(pattern=PERIOD)
     capex_bdt: float | None = Field(default=None, ge=0)
     notes: str | None = None
+    affects: list[Carrier] | None = Field(default=None, description="Carriers the measure changes; inferred from the text if omitted")
 
 
 class ProductionMonth(BaseModel):
@@ -81,3 +85,7 @@ class OfficialFactorIn(BaseModel):
 class ResolveIn(BaseModel):
     resolution: Literal["confirmed_correct", "corrected", "evidence_requested", "not_an_issue"]
     comment: str = Field(min_length=3, max_length=2000, description="What the reviewer checked; stored in the audit log")
+
+
+class SignIn(BaseModel):
+    comment: str = Field(min_length=3, max_length=2000, description="What the reviewer checked before signing")

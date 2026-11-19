@@ -45,9 +45,11 @@ correlate logs.
 | `POST /v1/factories/{id}/verification/run` · `GET …/verification` | Run / read the C-Trace Verifier: grade, expected band and drivers per month; `stale` after data changes |
 | `POST /v1/verification/{run_id}/{period}/resolve` | Reviewer resolution with comment (audit-logged) |
 | `GET /v1/admin/drift?run=` | Fleet drift checks (platform admins) |
+| `POST /v1/factories/{id}/reductions/compute` · `GET …/reductions` | Prove each declared intervention's saving (ASHRAE G14 checks, 90% interval, tCO2e, BDT) |
+| `POST /v1/reductions/{id}/sign` · `GET /v1/reductions/{id}/certificate.pdf` | Reviewer sign-off; Reduction Certificate PDF (DRAFT until signed) |
 | `POST /v1/stateless/extract` · `/analyze` · `/report` | Prototype endpoints that store nothing |
 
-Reductions, reports and sharing, and the Copilot come in later phases.
+Reports and sharing and the Copilot come in later phases.
 
 ## Example
 ```bash

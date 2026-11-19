@@ -402,3 +402,81 @@ def test_verification_review_loop(client, owner_conn, demo_copy, token, monkeypa
     checks = client.get("/v1/admin/drift", headers=h, params={"run": True}).json()
     assert checks[0]["model_version"] == "C-Trace Verifier v2" and checks[0]["n_factories"] >= 1
     assert checks[0]["alert"] is False   # too few months to judge: never a false alarm
+
+
+# ------------------------------------------------------------------ phase 6: reductions and certificate
+def make_demo_copy(client, owner_conn, token) -> dict:  # type: ignore[no-untyped-def]
+    from ctrace.store.registry import sync_weather
+    uid, org = new_member(owner_conn, None, "owner")
+    prof = json.loads((config.SAMPLES_DIR / "factory_profile.json").read_text())
+    with org_tx(owner_conn, org, uid):
+        f = service.create_factory(owner_conn, uid, {"name": "Reduction demo (fictional)", "factory_type": prof["factory_type"],
+                                                     "workers": prof["workers"], "has_wet_processing": True, "captive_gas_gen": True,
+                                                     "lat": 24.0, "lon": 90.42, "location": "Gazipur, Bangladesh"})
+        service.add_asset(owner_conn, uid, f["id"], "solar", 600, "kWp", "2026-04")
+        for iv in prof["interventions"]:
+            service.add_intervention(owner_conn, uid, f["id"], iv["measure"], iv["from"])
+        prod = pd.read_csv(config.SAMPLES_DIR / "production.csv")
+        service.upsert_production(owner_conn, uid, f["id"], list(zip(prod.period, prod.pieces.astype(float), strict=True)), "fictional")
+        for p in sorted(config.BILLS_DIR.glob("*.pdf")):
+            service.ingest_document(owner_conn, uid, f["id"], p.name, p.read_bytes(), "application/pdf")
+    sync_weather(owner_conn, 24.0, 90.42)
+    run_pending(owner_conn)
+    return {"user_id": uid, "org_id": org, "factory_id": f["id"], "headers": auth(token(uid))}
+
+
+def test_reduction_proof_sign_off_and_certificate(client, owner_conn, token):
+    import io as _io
+
+    import pdfplumber
+
+    from ctrace.factors import factor_for
+    d = make_demo_copy(client, owner_conn, token)
+    fid, h = d["factory_id"], d["headers"]
+    ivs = client.get(f"/v1/factories/{fid}", headers=h).json()["interventions"]
+    assert {i["measure"]: i["affects"] for i in ivs} == {"Boiler economiser + steam-trap repair": ["natural_gas"],
+                                                         "600 kWp rooftop solar": ["grid_electricity"]}
+    assert client.post(f"/v1/factories/{fid}/reductions/compute", headers=h).status_code == 422   # verification first
+
+    client.post(f"/v1/factories/{fid}/verification/run", headers=h)
+    before = {r["activity"]: r for r in client.post(f"/v1/factories/{fid}/reductions/compute", headers=h).json()}
+    gas0 = before["natural_gas"]
+    assert gas0["excluded"]["baseline"] == ["2025-09"] and gas0["n_baseline"] == 11
+    assert gas0["verified"] is False and "baseline months" in gas0["status_reason"]
+    assert client.post(f"/v1/reductions/{gas0['id']}/sign", headers=h, json={"comment": "looks fine"}).status_code == 422
+
+    s = next(x for x in client.get(f"/v1/factories/{fid}/suggestions", headers=h).json() if x["period"] == "2025-09")
+    client.post(f"/v1/activity-records/{s['activity_record_id']}/correct", headers=h,
+                json={"quantity": s["suggested_quantity"], "reason": "Accepted tariff-based correction (dropped digit)"})
+    assert client.post(f"/v1/factories/{fid}/reductions/compute", headers=h).status_code == 422   # stale verification
+    client.post(f"/v1/factories/{fid}/verification/run", headers=h)
+    after = {r["activity"]: r for r in client.post(f"/v1/factories/{fid}/reductions/compute", headers=h).json()}
+    gas, grid = after["natural_gas"], after["grid_electricity"]
+    assert gas["verified"] and grid["verified"] and gas["n_baseline"] == 12 and not gas["excluded"]["baseline"]
+    assert 0.08 < gas["avoided"] / gas["predicted"] < 0.16        # planted ~12% boiler saving
+    assert gas["low"] > 0 and gas["checks"]["cv_rmse"]["pass"] and abs(gas["nmbe"]) < 0.05
+    ef = factor_for("natural_gas", 2026).kgco2e_per_unit / 1000
+    assert gas["tco2e"] == pytest.approx(gas["avoided"] * ef, rel=1e-3)
+    assert gas["bdt_saved"] == pytest.approx(gas["avoided"] * gas["tariff_bdt"], rel=1e-3)
+    assert grid["excluded"]["reporting"] == []                     # July's missing diesel does not touch grid data
+    assert {doc["file_name"] for doc in gas["documents"]} >= {"2025-01_natural_gas.pdf", "2026-10_natural_gas.pdf"}
+
+    def text(r) -> str:  # type: ignore[no-untyped-def]
+        with pdfplumber.open(_io.BytesIO(r.content)) as pdf:
+            return "\n".join(pg.extract_text() or "" for pg in pdf.pages)
+
+    draft = client.get(f"/v1/reductions/{gas['id']}/certificate.pdf", headers=h)
+    assert draft.status_code == 200 and "DRAFT" in text(draft) and "_DRAFT.pdf" in draft.headers["content-disposition"]
+    viewer, _ = new_member(owner_conn, d["org_id"], "viewer")
+    assert client.post(f"/v1/reductions/{gas['id']}/sign", headers=auth(token(viewer)), json={"comment": "ok then"}).status_code == 403
+    signed = client.post(f"/v1/reductions/{gas['id']}/sign", headers=h,
+                         json={"comment": "Checked baseline bills and the economiser commissioning report"})
+    assert signed.status_code == 200 and signed.json()["status"] == "signed"
+    cert = text(client.get(f"/v1/reductions/{gas['id']}/certificate.pdf", headers=h))
+    assert "Reduction Certificate" in cert and "not a third-party assurance or carbon credit" in cert
+    assert "Signed by" in cert and "economiser commissioning" in cert and "DRAFT" not in cert
+    assert gas["documents"][0]["trace_id"] in cert and "ipcc2006-natural_gas-v1" in cert
+
+    client.post(f"/v1/factories/{fid}/reductions/compute", headers=h)   # recompute: signed proof is kept
+    current = client.get(f"/v1/factories/{fid}/reductions", headers=h).json()
+    assert sum(r["status"] == "signed" for r in current) == 1 and {r["status"] for r in current} == {"signed", "draft"}

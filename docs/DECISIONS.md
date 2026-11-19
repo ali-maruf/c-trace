@@ -275,3 +275,38 @@ spread of z across every factory's latest run moved more than 30% from the sprea
 correction. A human-reviewed (confirmed/corrected) bill's extraction warnings no longer count as document issues.
 Resolution is one of `confirmed_correct | corrected | evidence_requested | not_an_issue` plus a required comment, and
 is audit-logged.
+
+## Phase 6 — reduction proof v2 and certificate
+
+### D41. ASHRAE Guideline 14 limits
+For monthly whole-facility baselines, ASHRAE Guideline 14-2014 is widely cited for CV(RMSE) ≤ 15% and |NMBE| ≤ 5%. The
+standard itself is paywalled, so these are the commonly published values, not a quotation; they are kept in one place
+(`ctrace.reduction.LIMITS`). R² ≥ 0.75 and at least 12 baseline months (a full operating cycle) follow common IPMVP
+Option C practice. "Verified" needs all of them **and** a 90% interval whose lower bound is above zero; otherwise the
+proof is stored as not verified, with the failed checks named, and it cannot be signed.
+
+### D42. Windows come from declared interventions and the carriers they affect
+`interventions.affects` (natural_gas / grid_electricity / diesel) is set explicitly or inferred from the measure text
+(boiler/steam → gas; solar/LED/chiller/VFD → grid; genset → diesel). If neither works, the API asks. For each intervention
+and carrier, the baseline runs from the previous intervention on that carrier (or the start of data) to the month before,
+and the reporting period runs to the next intervention on that carrier (or the end). Overlapping effects across carriers
+(e.g. solar also lowering captive-generation gas) are attributed to the declared carrier only; the certificate names the
+intervention, so a reviewer sees it.
+
+### D43. Low months are excluded per carrier
+A month is left out of a carrier's proof only if the latest verification graded it Low for a reason that concerns that
+carrier (its z-score, or a problem with one of its documents). July 2026's missing diesel receipt therefore does not remove
+July's gas or grid data. A stale verification (data changed since) blocks computing. One consequence is good for the demo
+story: until the dropped-digit gas bill is corrected, 2025-09 is excluded, the gas baseline has 11 months, and the boiler
+saving is *not verified*. Accepting the correction fixes it.
+
+### D44. Conversion
+Avoided tCO2e = Σ over reporting months of (predicted − actual) × the factor valid in that month (the same factor ids the
+ledger used). The interval is converted with the mean reporting-month factor. BDT = avoided × the factory's own median
+implied tariff for that carrier (amount ÷ quantity over its bills).
+
+### D45. Sign-off and certificate
+Proofs are stored as `draft`; recomputing supersedes drafts and keeps signed proofs. Only a verified draft can be signed, by
+an owner, manager or reviewer, with a comment, and the signature is audit-logged. The PDF certificate is labelled
+"C-Trace verification statement — not a third-party assurance or carbon credit", shows DRAFT until signed, and lists every
+document it used by trace ID and hash.

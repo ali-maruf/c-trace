@@ -133,11 +133,16 @@ def add_asset(conn: Conn, user_id: str | None, factory_id: str, kind: str, capac
 
 
 def add_intervention(conn: Conn, user_id: str | None, factory_id: str, measure: str, from_period: str,
-                     capex_bdt: float | None = None, notes: str | None = None) -> dict:
+                     capex_bdt: float | None = None, notes: str | None = None, affects: list[str] | None = None) -> dict:
+    """`affects`: energy carriers the measure changes; inferred from the description when not given."""
+    from ..reduction import infer_affects
     get_factory(conn, factory_id)
-    row = conn.execute("insert into interventions (org_id, factory_id, measure, from_period, capex_bdt, notes) "
-                       "values (ctrace_current_org(), %s, %s, %s, %s, %s) returning *",
-                       (factory_id, measure, from_period, capex_bdt, notes)).fetchone()
+    affects = list(affects) if affects else infer_affects(measure)
+    if not affects:
+        raise ValueError("Say which energy carrier this intervention affects (natural_gas, grid_electricity or diesel)")
+    row = conn.execute("insert into interventions (org_id, factory_id, measure, from_period, capex_bdt, notes, affects) "
+                       "values (ctrace_current_org(), %s, %s, %s, %s, %s, %s) returning *",
+                       (factory_id, measure, from_period, capex_bdt, notes, affects)).fetchone()
     assert row is not None
     audit(conn, user_id, "intervention.create", "intervention", row["id"], None, row)
     return clean(row)

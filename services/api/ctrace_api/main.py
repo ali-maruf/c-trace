@@ -52,6 +52,7 @@ app = FastAPI(
         {"name": "auth"}, {"name": "factories"}, {"name": "production"}, {"name": "documents"},
         {"name": "review", "description": "Human-in-the-loop confirmation and corrections (audit-logged)"},
         {"name": "emissions"}, {"name": "verification", "description": "C-Trace Verifier: expected use, bands, drivers, flags"},
+        {"name": "reductions", "description": "Proven savings per intervention, reviewer sign-off, certificate"},
         {"name": "factors"},
         {"name": "stateless", "description": "Prototype endpoints that store nothing"},
     ],

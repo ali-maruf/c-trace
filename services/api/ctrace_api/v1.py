@@ -10,8 +10,10 @@ import pandas as pd
 from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, Request, UploadFile, status
 from fastapi.responses import Response
 
+from ctrace import certificate
 from ctrace.public_data import provenance
 from ctrace.simulator import periods as period_range
+from ctrace.store import reductions as red
 from ctrace.store import registry, service
 from ctrace.store import verification as verif
 from ctrace.store.db import Conn, org_tx
@@ -28,6 +30,7 @@ from .schemas import (
     RejectIn,
     ResolveIn,
     ReviewIn,
+    SignIn,
 )
 
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
@@ -303,3 +306,35 @@ def get_drift(request: Request, p: Auth, run: bool = False) -> list[dict]:
             with conn.transaction():
                 verif.drift_check(conn)
         return [service.clean(r) for r in conn.execute("select * from model_drift_checks order by checked_at desc limit 20")]
+
+
+# ------------------------------------------------------------------ reductions (IPMVP Option C-style, ASHRAE G14 checks)
+@router.post("/factories/{factory_id}/reductions/compute", tags=["reductions"],
+             summary="Prove each declared intervention's saving from verified data (drafts; signed proofs are kept)")
+def compute_reductions(request: Request, p: Auth, factory_id: str) -> list[dict]:
+    with scoped(request, p, REVIEW_ROLES, "compute reductions") as conn:
+        return red.compute(conn, p.user_id, factory_id)
+
+
+@router.get("/factories/{factory_id}/reductions", tags=["reductions"])
+def list_reductions(request: Request, p: Auth, factory_id: str) -> list[dict]:
+    with scoped(request, p) as conn:
+        return red.list_current(conn, factory_id)
+
+
+@router.post("/reductions/{reduction_id}/sign", tags=["reductions"], summary="Reviewer sign-off (verified proofs only; audit-logged)")
+def sign_reduction(request: Request, p: Auth, reduction_id: str, body: SignIn) -> dict:
+    with scoped(request, p, REVIEW_ROLES, "sign reductions") as conn:
+        return red.sign(conn, p.user_id, reduction_id, body.comment)
+
+
+@router.get("/reductions/{reduction_id}/certificate.pdf", tags=["reductions"], summary="Reduction Certificate (PDF); DRAFT until signed")
+def reduction_certificate(request: Request, p: Auth, reduction_id: str) -> Response:
+    with scoped(request, p) as conn:
+        r = red.get(conn, reduction_id)
+        f = service.get_factory(conn, r["factory_id"])
+        sources = {row["id"]: service.clean(row) for row in conn.execute(
+            "select id, source, source_url from emission_factors where id = any(%s)", (r["factor_ids"],))}
+        pdf = certificate.render(r, f, red.signer_name(conn, r.get("signed_by")), sources)
+    name = f"C-Trace_reduction_{r['activity']}_{r['reporting_from']}{'' if r['status'] == 'signed' else '_DRAFT'}.pdf"
+    return Response(pdf, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{name}"'})

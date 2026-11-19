@@ -90,3 +90,17 @@ def test_number_guard_blocks_invented_numbers(demo):
     facts = build_facts(prof, out["summary"], out["ledger"], out["verification"], None, "2026-01", "2026-10")
     assert number_guard(template_narrative("buyer", facts), facts) == []
     assert number_guard("Emissions fell to 1234.5 tCO2e", facts) == ["1234.5"]
+
+
+def test_reduction_windows_follow_declared_interventions():
+    from ctrace.reduction import infer_affects, windows
+    assert infer_affects("Boiler economiser + steam-trap repair") == ["natural_gas"]
+    assert infer_affects("600 kWp rooftop solar") == ["grid_electricity"]
+    ps = [f"2025-{m:02d}" for m in range(1, 13)] + [f"2026-{m:02d}" for m in range(1, 11)]
+    ivs = [{"from": "2026-01", "measure": "Boiler economiser"}, {"from": "2026-04", "measure": "Rooftop solar"},
+           {"from": "2026-07", "measure": "Condensate recovery", "affects": ["natural_gas"]}]
+    w = {(x.activity, x.measure): x for x in windows(ivs, ps)}
+    boiler, solar, cond = w[("natural_gas", "Boiler economiser")], w[("grid_electricity", "Rooftop solar")], w[("natural_gas", "Condensate recovery")]
+    assert boiler.baseline == ps[:12] and boiler.reporting == ["2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"]
+    assert solar.baseline == ps[:15] and solar.reporting[0] == "2026-04"
+    assert cond.baseline == boiler.reporting                  # the previous gas regime is the next baseline
