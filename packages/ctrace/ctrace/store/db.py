@@ -43,10 +43,25 @@ def configure(conn: psycopg.Connection[Any]) -> None:
         conn.prepare_threshold = None
 
 
+# libpq accepts only its own URI parameters; providers add extras (e.g. Supabase's `supa=`), which libpq rejects.
+_LIBPQ_PARAMS = {"sslmode", "sslrootcert", "sslcert", "sslkey", "connect_timeout", "application_name", "options",
+                 "target_session_attrs", "keepalives", "keepalives_idle", "gssencmode", "channel_binding"}
+
+
+def clean_url(url: str) -> str:
+    from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+    if "://" not in url:
+        return url  # key=value conninfo
+    parts = urlsplit(url)
+    query = [(k, v) for k, v in parse_qsl(parts.query) if k in _LIBPQ_PARAMS]
+    return urlunsplit(parts._replace(query=urlencode(query)))
+
+
 def database_url() -> str:
-    url = os.getenv("DATABASE_URL")
+    """`DATABASE_URL`, else `POSTGRES_URL` (set by Vercel's Supabase and Postgres integrations: the IPv4 pooler)."""
+    url = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL")
     if url:
-        return url
+        return clean_url(url)
     if environment() != "development":
         raise RuntimeError("C-Trace: DATABASE_URL must be set when CTRACE_ENV is not 'development'.")
     return local_database_url()
