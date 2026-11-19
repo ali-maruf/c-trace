@@ -36,11 +36,12 @@ def migrate(conn: Conn, directory: Path = MIGRATIONS_DIR) -> list[str]:
 
 
 def main() -> None:
-    from .factors_sync import sync_factors
+    from .factors_sync import sync_factors, sync_kb
 
     with connect() as conn:
         applied = migrate(conn)
         n = sync_factors(conn)
+        sync_kb(conn)
     print(f"[C-Trace] migrations applied: {applied or 'none pending'}; emission factors synced: {n}")
 
 

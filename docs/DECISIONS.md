@@ -331,3 +331,33 @@ inside the upload request; the worker remains the path for containers. `CTRACE_S
 `document_blobs` (org-scoped, RLS) instead of local files. The 4.5 MB request-body limit on Vercel Functions caps a single
 upload request; the UI sends files one per request. `CTRACE_API_PREFIX` mounts the API under a path (`/api`) for
 path-based routing.
+
+## Phases 8–9 — reports, sharing, Copilot
+
+### D49. Share tokens are stored as hashes
+A share link carries a 256-bit random token. Only its SHA-256 is stored, so a database leak does not expose working
+links. Re-sharing replaces the token, and revoking or expiring returns HTTP 410. Each view (page, PDF, document) is logged
+with a truncated hash of the client address and the user agent, which the owner sees in the app. Original bills behind a
+shared report are available only when the owner ticks "include documents", and only for documents inside the report's period.
+
+### D50. Invitations
+Owners invite by email with a role. The invitation is accepted automatically the first time that verified email signs in.
+The last owner cannot be demoted or removed. Invitations are disabled in demo sandboxes.
+
+### D51. The Copilot never computes a number
+Tools are deterministic code over the factory's data (summary, ledger, verification, reductions, guidance). Month-over-month
+changes are computed in the summary tool, not by the Copilot. Every answer must cite trace, reduction, verification or
+knowledge-base IDs, and must pass the number guard against the tool results. A draft that fails gets a safe "could not
+answer with verified figures" reply (tested by blocking an invented figure). The guard accepts a value's magnitude (for
+example "down 12.3 t" for −12.3), since that is still the verified figure. Offline, intents are routed in English and Bangla
+with templated answers. With a key, Claude runs a tool loop (tool_choice auto with strict tool schemas; Sonnet 5.5 rejects
+forced tool use), and an uncited or guard-failing answer falls back to the offline answer. Off-topic questions are declined.
+The endpoint streams server-sent events: one per tool call, then the answer.
+
+### D52. RAG v2 without dense embeddings, for now
+The brief names `intfloat/multilingual-e5-small` via sentence-transformers. That needs PyTorch plus about 470 MB of
+weights, which doesn't fit the Vercel Python function budget alongside the scientific stack. Retrieval is hybrid lexical:
+BM25 plus TF-IDF uni- and bigrams, fused with reciprocal-rank fusion. It has stable chunk IDs for citations, and a Bangla→English
+domain-term map so Bangla questions reach the English guidance. `kb_chunks` mirrors the chunks, with the `vector(384)` column
+ready. The upgrade path is to compute embeddings at build time with an ONNX export and serve queries from a separate container.
+Guidance chunks remain C-Trace's own summaries with the source to consult; no standards text is copied.

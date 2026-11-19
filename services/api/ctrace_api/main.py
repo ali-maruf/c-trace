@@ -14,7 +14,7 @@ from psycopg_pool import ConnectionPool
 from ctrace import BRAND, TAGLINE, __version__, config
 from ctrace.store import service
 from ctrace.store.db import configure, connect, database_url, environment
-from ctrace.store.factors_sync import sync_factors
+from ctrace.store.factors_sync import sync_factors, sync_kb
 from ctrace.store.migrate import migrate
 
 from . import stateless, v1
@@ -35,6 +35,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         with connect(url) as conn:
             migrate(conn)
             sync_factors(conn)
+            sync_kb(conn)
     pool = ConnectionPool(url, min_size=1, max_size=int(os.getenv("CTRACE_DB_POOL_MAX", "10")), open=True,
                           kwargs={"autocommit": True, "row_factory": dict_row}, configure=configure)
     app.state.pool = pool
@@ -55,6 +56,7 @@ app = FastAPI(
         {"name": "reductions", "description": "Proven savings per intervention, reviewer sign-off, certificate"},
         {"name": "reports", "description": "C-Trace Reports: buyer, IFRS S2 lender, BSEC; share links"},
         {"name": "shared", "description": "Public, read-only views of shared reports"},
+        {"name": "copilot", "description": "C-Trace Copilot: answers from the factory's own data, cited and number-guarded"},
         {"name": "settings"},
         {"name": "factors"},
         {"name": "stateless", "description": "Prototype endpoints that store nothing"},

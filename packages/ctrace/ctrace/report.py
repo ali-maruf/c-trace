@@ -110,7 +110,7 @@ def _numbers_in(obj) -> set[float]:
             x = float(m.replace(",", ""))
         except ValueError:
             continue
-        found |= {round(x, 0), round(x, 1), round(x, 2), abs(round(x, 0))}
+        found |= {round(x, 0), round(x, 1), round(x, 2), abs(round(x, 0)), abs(round(x, 1)), abs(round(x, 2))}
     return found
 
 

@@ -118,3 +118,8 @@ class RoleIn(BaseModel):
 
 class DeleteFactoryIn(BaseModel):
     confirm_name: str = Field(min_length=1, max_length=200)
+
+
+class CopilotIn(BaseModel):
+    message: str = Field(min_length=2, max_length=1000)
+    language: Literal["en", "bn"] | None = Field(default=None, description="Answer language; detected from the question if omitted")

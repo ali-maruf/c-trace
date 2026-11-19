@@ -50,6 +50,7 @@ CTRACE_EXTRACTION_ESCALATION_MODEL = os.getenv("CTRACE_EXTRACTION_ESCALATION_MOD
 CTRACE_ESCALATE_BELOW = float(os.getenv("CTRACE_ESCALATE_BELOW", "0.7"))
 CTRACE_EXTRACTION_EFFORT = os.getenv("CTRACE_EXTRACTION_EFFORT", "low")
 CTRACE_EXTRACTION_PROMPT = os.getenv("CTRACE_EXTRACTION_PROMPT", "extract_bill/v2")
+CTRACE_COPILOT_PROMPT = os.getenv("CTRACE_COPILOT_PROMPT", "copilot/v1")
 # Server-side refusal fallback for models that support it ("default" or "off").
 CTRACE_LLM_FALLBACKS = os.getenv("CTRACE_LLM_FALLBACKS", "default")
 CTRACE_LLM_TIMEOUT_S = float(os.getenv("CTRACE_LLM_TIMEOUT_S", "120"))

@@ -635,3 +635,92 @@ def test_invites_join_on_first_sign_in_and_owner_rules(client, owner_conn, token
     assert client.post("/v1/org/invites", headers=auth(token(newcomer, "reviewer.one@example.org")),
                        json={"email": "x@example.org", "role": "viewer"}).status_code == 403                    # not an owner
     assert client.delete(f"/v1/org/members/{newcomer}", headers=h).status_code == 204
+
+
+# ------------------------------------------------------------------ phase 9: Copilot
+def ask(client, fid: str, h: dict, q: str) -> dict:  # type: ignore[no-untyped-def]
+    r = client.post(f"/v1/factories/{fid}/copilot/chat", headers=h, params={"stream": False}, json={"message": q})
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_copilot_answers_cite_and_pass_the_number_guard(client, owner_conn, token):
+    from ctrace.report import number_guard
+    d = make_demo_copy(client, owner_conn, token)
+    fid, h = d["factory_id"], d["headers"]
+    client.post(f"/v1/factories/{fid}/verification/run", headers=h)
+
+    from ctrace.store.copilot import tools_for
+
+    def tool_results() -> list:  # everything the tools can return right now: any answer must be made of these numbers
+        with org_tx(owner_conn, d["org_id"], d["user_id"]):
+            t = tools_for(owner_conn, fid)
+            return [t["get_summary"](""), t["get_ledger"]("", ""), t["get_verification"](""), t["get_reductions"]()]
+
+    flagged = ask(client, fid, h, "Which months were flagged for checking?")
+    assert "2025-09" in flagged["text"] and "2026-07" in flagged["text"] and "not an accusation" in flagged["text"]
+
+    why = ask(client, fid, h, "Why did emissions change in July 2026?")
+    assert why["method"] == "offline" and not why["declined"] and "2026-07" in why["text"]
+    assert why["citations"] and all(c["type"] == "trace" and c["id"].startswith("CT-2026-07-") for c in why["citations"])
+    assert {c["tool"] for c in why["tool_calls"]} >= {"get_summary", "get_ledger", "get_verification"}
+    before = tool_results()
+    assert number_guard(flagged["text"], {"results": before}) == [] and number_guard(why["text"], {"results": before}) == []
+
+    s = next(x for x in client.get(f"/v1/factories/{fid}/suggestions", headers=h).json() if x["period"] == "2025-09")
+    client.post(f"/v1/activity-records/{s['activity_record_id']}/correct", headers=h, json={"quantity": s["suggested_quantity"], "reason": "Accepted suggestion"})
+    client.post(f"/v1/factories/{fid}/verification/run", headers=h)
+    reds = client.post(f"/v1/factories/{fid}/reductions/compute", headers=h).json()
+    boiler = ask(client, fid, h, "How much did the boiler retrofit save?")
+    gas = next(r for r in reds if r["activity"] == "natural_gas")
+    assert boiler["citations"] == [{"type": "reduction", "id": gas["id"], "label": gas["measure"]}]
+    assert f"{gas['tco2e']:,.1f}" in boiler["text"] and "verified" in boiler["text"]
+
+    ifrs = ask(client, fid, h, "What does IFRS S2 require for Scope 2?")
+    assert ifrs["citations"][0]["type"] == "kb" and ifrs["citations"][0]["id"].startswith("kb:ifrs-s2")
+
+    bn = ask(client, fid, h, "জুলাই ২০২৬-এ নির্গমন কেন বেড়েছে?")
+    assert bn["language"] == "bn" and "নির্গমন" in bn["text"] and bn["citations"][0]["id"].startswith("CT-2026-07-")
+
+    off = ask(client, fid, h, "Write me a poem about football")
+    assert off["declined"] and not off["citations"]
+
+    assert number_guard(boiler["text"], {"results": tool_results()}) == []
+
+    sse = client.post(f"/v1/factories/{fid}/copilot/chat", headers=h, json={"message": "What were total emissions?"})
+    assert sse.headers["content-type"].startswith("text/event-stream")
+    events = [b for b in sse.text.split("\n\n") if b]
+    assert events[0].startswith("event: tool") and events[-1].startswith("event: answer")
+
+
+def test_copilot_number_guard_and_llm_loop_with_fake_client():
+    from types import SimpleNamespace as NS
+
+    from ctrace.copilot import Answer, _guarded, answer_llm
+    blocked = _guarded(Answer("Emissions were 9,999.9 tCO2e", "en", [{"type": "trace", "id": "x"}]), [{"total": 12.5}])
+    assert "could not produce" in blocked.text and "number guard" in blocked.method
+
+    summary = {"period_from": "2025-01", "period_to": "2026-10", "months": [],
+               "totals": {"months": 22, "total_tco2e": 15466.6, "scope1_tco2e": 11508.6, "scope2_location_tco2e": 3958.0, "kgco2e_per_piece": None}}
+    tools = {"get_summary": lambda period="": summary, "get_ledger": lambda **k: [],
+             "get_verification": lambda **k: None, "get_reductions": lambda: [], "search_guidance": lambda query: []}
+
+    class Fake:
+        def __init__(self, final: str):
+            self.final, self.n = final, 0
+            self.messages = self
+
+        def create(self, **kw):  # type: ignore[no-untyped-def]
+            self.n += 1
+            assert "tool_choice" not in kw or kw["tool_choice"] == {"type": "auto"}
+            if self.n == 1:
+                return NS(stop_reason="tool_use", content=[NS(type="tool_use", id="t1", name="get_summary", input={"period": ""})])
+            return NS(stop_reason="end_turn", content=[NS(type="text", text=self.final)])
+
+    ok = list(answer_llm("What were total emissions?", tools, "en", Fake("The factory emitted 15,466.6 tCO2e [trace:CT-2025-01-NAT-abc].")))
+    assert ok[0]["type"] == "tool" and ok[-1]["answer"]["method"].startswith("llm:")
+    assert ok[-1]["answer"]["citations"] == [{"type": "trace", "id": "CT-2025-01-NAT-abc", "label": "CT-2025-01-NAT-abc"}]
+    invented = list(answer_llm("Total?", tools, "en", Fake("The factory emitted 99,999 tCO2e [trace:CT-x].")))
+    assert "number guard" in invented[-1]["answer"]["method"]
+    uncited = list(answer_llm("Total?", tools, "en", Fake("The factory emitted 15,466.6 tCO2e.")))
+    assert uncited[-1]["answer"]["method"].startswith("offline (Claude answer not accepted)")

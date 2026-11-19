@@ -12,8 +12,10 @@ from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, Reques
 from fastapi.responses import Response
 
 from ctrace import certificate
+from ctrace import copilot as cop
 from ctrace.public_data import provenance
 from ctrace.simulator import periods as period_range
+from ctrace.store import copilot as cop_store
 from ctrace.store import demo as demo_store
 from ctrace.store import orgadmin, registry, service
 from ctrace.store import reductions as red
@@ -36,6 +38,7 @@ from .ratelimit import SlidingWindowPerHour
 from .schemas import (
     PERIOD,
     AssetIn,
+    CopilotIn,
     CorrectionIn,
     DeleteFactoryIn,
     FactoryIn,
@@ -556,3 +559,23 @@ def delete_factory(request: Request, p: Auth, factory_id: str, body: DeleteFacto
     with scoped(request, p, frozenset({"owner"}), "delete factory data") as conn:
         orgadmin.delete_factory(conn, p.user_id, factory_id, body.confirm_name)
     return Response(status_code=204)
+
+
+# ------------------------------------------------------------------ C-Trace Copilot
+@router.post("/factories/{factory_id}/copilot/chat", tags=["copilot"], response_model=None,
+             summary="Ask C-Trace Copilot (EN/BN). Streams server-sent events: one per tool call, then the cited, number-guarded answer")
+def copilot_chat(request: Request, p: Auth, factory_id: str, body: CopilotIn, stream: bool = True) -> Response:
+    from .ratelimit import limit_llm
+    limit_llm(p.user_id)
+    with scoped(request, p) as conn:
+        events = list(cop.ask(body.message, cop_store.tools_for(conn, factory_id), body.language))
+    if not stream:
+        import json as _json
+        return Response(_json.dumps(events[-1]["answer"], default=str, ensure_ascii=False), media_type="application/json")
+
+    def sse() -> Iterator[bytes]:
+        import json as _json
+        for e in events:
+            yield f"event: {e['type']}\ndata: {_json.dumps(e, default=str, ensure_ascii=False)}\n\n".encode()
+    from fastapi.responses import StreamingResponse
+    return StreamingResponse(sse(), media_type="text/event-stream", headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})

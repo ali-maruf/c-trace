@@ -29,11 +29,12 @@ def db_url() -> Iterator[str]:
         c.execute(sql.SQL("create database {}").format(sql.Identifier(name)))
     url = make_conninfo(base, dbname=name)
     from ctrace.store.db import connect
-    from ctrace.store.factors_sync import sync_factors
+    from ctrace.store.factors_sync import sync_factors, sync_kb
     from ctrace.store.migrate import migrate
     with connect(url) as conn:
         migrate(conn)
         sync_factors(conn)
+        sync_kb(conn)
     try:
         yield url
     finally:

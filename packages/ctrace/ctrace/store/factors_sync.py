@@ -33,3 +33,15 @@ def sync_factors(conn: Conn) -> int:
             )
             n += 1
     return n
+
+
+def sync_kb(conn: Conn) -> int:
+    """Mirror the knowledge-base chunks (ctrace/knowledge/kb.md) into `kb_chunks` so citations resolve in the database."""
+    from ..rag import load_chunks
+    chunks = load_chunks()
+    with conn.transaction():
+        conn.execute("delete from kb_chunks where id like 'kb:%%'")
+        with conn.cursor() as cur:
+            cur.executemany("insert into kb_chunks (id, title, source, text) values (%s, %s, %s, %s)",
+                            [(c.id, c.title, c.source, c.text) for c in chunks])
+    return len(chunks)
