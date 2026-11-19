@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+/* C-Trace brand tokens (docs: brief §2). Confidence colours are semantic and identical everywhere. */
+@theme {
+  --color-teal: #0f766e;
+  --color-teal-dark: #115e59;
+  --color-teal-light: #f0fdfa;
+  --color-ink: #111827;
+  --color-slate: #475569;
+  --color-line: #e2e8f0;
+  --color-medium: #b45309;      /* amber, darkened from #D97706 for WCAG AA text contrast on white */
+  --color-medium-bg: #fef3c7;
+  --color-low: #dc2626;
+  --color-low-bg: #fee2e2;
+  --color-high: #0f766e;
+  --color-high-bg: #ccfbf1;
+  --color-grid: #38bdf8;
+  --color-gas: #0f766e;
+  --color-diesel: #f59e0b;
+  --color-medium-brand: #d97706; /* charts and markers; text uses --color-medium */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, monospace;
+}
+
+html { color: var(--color-ink); background: #ffffff; }
+body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+:focus-visible { outline: 2px solid var(--color-teal); outline-offset: 2px; }
+mark { background: #fef08a; color: inherit; padding: 0 2px; border-radius: 2px; }
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* model card / markdown */
+.prose-ctrace { font-size: 0.925rem; line-height: 1.6; }
+.prose-ctrace h1 { font-size: 1.75rem; font-weight: 700; color: var(--color-teal); margin: 1rem 0; }
+.prose-ctrace h2 { font-size: 1.3rem; font-weight: 650; margin: 2rem 0 0.75rem; border-bottom: 1px solid var(--color-line); padding-bottom: 0.3rem; }
+.prose-ctrace h3 { font-size: 1.05rem; font-weight: 600; margin: 1.5rem 0 0.5rem; }
+.prose-ctrace p, .prose-ctrace ul { margin: 0.6rem 0; }
+.prose-ctrace ul { list-style: disc; padding-left: 1.25rem; }
+.prose-ctrace table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-variant-numeric: tabular-nums; display: block; overflow-x: auto; }
+.prose-ctrace th { background: var(--color-teal-light); text-align: left; font-weight: 600; }
+.prose-ctrace th, .prose-ctrace td { border: 1px solid var(--color-line); padding: 0.35rem 0.6rem; font-size: 0.85rem; }
+.prose-ctrace code { font-family: var(--font-mono); font-size: 0.8rem; background: #f1f5f9; padding: 0 3px; border-radius: 3px; }

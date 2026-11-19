@@ -43,6 +43,12 @@ class LocalStorage:
     def get(self, key: str) -> bytes:
         return self._path(key).read_bytes()
 
+    def delete_prefix(self, prefix: str) -> None:
+        import shutil
+        p = self._path(prefix)
+        if p.is_dir():
+            shutil.rmtree(p)
+
 
 class DbStorage:
     """Documents in Postgres (`document_blobs`), for serverless hosts with no persistent disk. Uses the caller's

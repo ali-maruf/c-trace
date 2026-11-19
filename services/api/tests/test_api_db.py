@@ -545,3 +545,93 @@ def test_db_storage_backend(client, small_factory, monkeypatch):
     assert r["job"]["status"] == "done"
     f = client.get(f"/v1/documents/{r['document']['id']}/file", headers=small_factory["headers"])
     assert f.content == p.read_bytes()
+
+
+# ------------------------------------------------------------------ phase 8: reports, sharing, settings
+def test_reports_downloads_and_number_guard(client, owner_conn, token):
+    import io as _io
+    import zipfile as _zip
+
+    from ctrace.report import number_guard
+    d = make_demo_copy(client, owner_conn, token)
+    fid, h = d["factory_id"], d["headers"]
+    client.post(f"/v1/factories/{fid}/verification/run", headers=h)
+    r = client.post(f"/v1/factories/{fid}/reports", headers=h, json={"format": "buyer", "period_from": "2026-01", "period_to": "2026-10"})
+    assert r.status_code == 201, r.text
+    rp = r.json()
+    facts = rp["facts"]
+    assert rp["method"] == "template" and facts["months"] == 10 and facts["documents"] > 0
+    assert number_guard(rp["narrative"], {k: v for k, v in facts.items() if k != "_guidance"}) == []
+    assert facts["data_quality"]["verification_model"] == "C-Trace Verifier v2" and "confidence_months" in facts
+    pdf = client.get(f"/v1/reports/{rp['id']}/download.pdf", headers=h)
+    assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")
+    js = client.get(f"/v1/reports/{rp['id']}/download.json", headers=h).json()
+    assert js["facts"]["total_tco2e"] == facts["total_tco2e"] and "_guidance" not in js["facts"]
+    csv_text = client.get(f"/v1/reports/{rp['id']}/download.csv", headers=h).text
+    assert csv_text.splitlines()[0].startswith("trace_id,period") and all(",2026-" in line for line in csv_text.splitlines()[1:])
+    assert client.post(f"/v1/factories/{fid}/reports", headers=h, json={"format": "buyer", "period_from": "2026-10", "period_to": "2026-01"}).status_code == 422
+
+    # export and delete (settings)
+    z = _zip.ZipFile(_io.BytesIO(client.get(f"/v1/factories/{fid}/export.zip", headers=h).content))
+    assert {"ledger.csv", "activity_records.csv", "documents.csv", "audit_log.json", "reductions.json"} <= set(z.namelist())
+    assert client.post(f"/v1/factories/{fid}/delete", headers=h, json={"confirm_name": "wrong"}).status_code == 422
+    assert client.post(f"/v1/factories/{fid}/delete", headers=h, json={"confirm_name": "Reduction demo (fictional)"}).status_code == 204
+    assert client.get(f"/v1/factories/{fid}", headers=h).status_code == 404
+    with org_tx(owner_conn, d["org_id"], d["user_id"]):
+        assert owner_conn.execute("select count(*) n from documents").fetchone()["n"] == 0
+        assert owner_conn.execute("select count(*) n from audit_log where action = 'factory.delete'").fetchone()["n"] == 1
+
+
+def test_share_link_works_expires_is_logged_and_revocable(client, owner_conn, token):
+    d = make_demo_copy(client, owner_conn, token)
+    fid, h = d["factory_id"], d["headers"]
+    rp = client.post(f"/v1/factories/{fid}/reports", headers=h, json={"format": "ifrs_s2", "period_from": "2025-01", "period_to": "2025-12"}).json()
+    viewer, _ = new_member(owner_conn, d["org_id"], "viewer")
+    assert client.post(f"/v1/reports/{rp['id']}/share", headers=auth(token(viewer)), json={"days": 7}).status_code == 403
+    s = client.post(f"/v1/reports/{rp['id']}/share", headers=h, json={"days": 7}).json()
+    assert s["path"] == f"/share/{s['token']}"
+    with org_tx(owner_conn, d["org_id"], d["user_id"]):
+        stored = owner_conn.execute("select share_token_hash, share_token from reports where id = %s", (rp["id"],)).fetchone()
+    assert stored["share_token"] is None and stored["share_token_hash"] != s["token"]          # only the hash is kept
+
+    pub = client.get(f"/v1/shared/{s['token']}")                                                 # no Authorization header
+    assert pub.status_code == 200 and pub.json()["title"].startswith("Climate Metrics") and "ledger" not in pub.json()
+    assert client.get(f"/v1/shared/{s['token']}/report.pdf").content.startswith(b"%PDF")
+    doc_id = client.get(f"/v1/factories/{fid}/documents", headers=h).json()[0]["id"]
+    assert client.get(f"/v1/shared/{s['token']}/documents/{doc_id}").status_code == 403         # bills not granted
+    views = client.get(f"/v1/reports/{rp['id']}/share/views", headers=h).json()
+    assert [v["what"] for v in views] == ["document", "pdf", "page"] and len(views[0]["client_hash"]) == 16
+
+    granted = client.post(f"/v1/reports/{rp['id']}/share", headers=h, json={"days": 7, "include_documents": True}).json()
+    assert client.get(f"/v1/shared/{s['token']}").status_code == 404                               # old token replaced
+    page = client.get(f"/v1/shared/{granted['token']}").json()
+    assert page["ledger"] and all("2025-" in x["period"] for x in page["ledger"])
+    one = page["ledger"][0]
+    assert client.get(f"/v1/shared/{granted['token']}/documents/{one['document_id']}").content.startswith(b"%PDF")
+
+    owner_conn.execute("update reports set expires_at = now() - interval '1 minute' where id = %s", (rp["id"],))
+    assert client.get(f"/v1/shared/{granted['token']}").status_code == 410
+    owner_conn.execute("update reports set expires_at = now() + interval '1 day' where id = %s", (rp["id"],))
+    assert client.get(f"/v1/shared/{granted['token']}").status_code == 200
+    client.post(f"/v1/reports/{rp['id']}/share/revoke", headers=h)
+    assert client.get(f"/v1/shared/{granted['token']}").status_code == 410
+    with org_tx(owner_conn, d["org_id"], d["user_id"]):
+        acts = [r["action"] for r in owner_conn.execute("select action from audit_log where entity = 'report' order by id")]
+    assert acts == ["report.create", "report.share", "report.share", "report.share_revoke"]
+
+
+def test_invites_join_on_first_sign_in_and_owner_rules(client, owner_conn, token):
+    uid, org = new_member(owner_conn, None, "owner")
+    h = auth(token(uid))
+    r = client.post("/v1/org/invites", headers=h, json={"email": "Reviewer.One@Example.org", "role": "reviewer"})
+    assert r.status_code == 201
+    newcomer = str(uuid.uuid4())
+    me = client.get("/v1/me", headers=auth(token(newcomer, "reviewer.one@example.org"))).json()
+    assert me["org_id"] == org and me["role"] == "reviewer"
+    m = client.get("/v1/org/members", headers=h).json()
+    assert {x["role"] for x in m["members"]} == {"owner", "reviewer"} and m["invites"] == []
+    assert client.put(f"/v1/org/members/{uid}", headers=h, json={"role": "viewer"}).status_code == 422          # last owner
+    assert client.put(f"/v1/org/members/{newcomer}", headers=h, json={"role": "manager"}).json()["role"] == "manager"
+    assert client.post("/v1/org/invites", headers=auth(token(newcomer, "reviewer.one@example.org")),
+                       json={"email": "x@example.org", "role": "viewer"}).status_code == 403                    # not an owner
+    assert client.delete(f"/v1/org/members/{newcomer}", headers=h).status_code == 204

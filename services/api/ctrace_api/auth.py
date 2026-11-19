@@ -19,7 +19,7 @@ import jwt
 from fastapi import Header, HTTPException, Request
 
 from ctrace import config
-from ctrace.store import demo, service
+from ctrace.store import demo, orgadmin, service
 
 DEV_ISSUER = "c-trace-dev"
 AUDIENCE = "authenticated"
@@ -117,6 +117,10 @@ def current_principal(request: Request, authorization: str | None = Header(defau
         memberships = service.memberships_for(conn, user_id)
     if claims.get("iss") == demo.DEMO_ISSUER:  # demo tokens reach demo sandboxes only
         memberships = [m for m in memberships if m["is_demo"]]
+    elif not memberships and claims.get("email"):  # first sign-in of an invited person
+        with pool.connection() as conn:
+            if orgadmin.accept_invites(conn, user_id, str(claims["email"])):
+                memberships = service.memberships_for(conn, user_id)
     if not memberships:
         raise HTTPException(403, "This account has no C-Trace organisation yet")
     if x_c_trace_org:

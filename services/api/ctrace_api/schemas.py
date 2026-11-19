@@ -94,3 +94,27 @@ class SignIn(BaseModel):
 class OnboardingIn(BaseModel):
     organization_name: str = Field(min_length=2, max_length=200)
     display_name: str | None = Field(default=None, max_length=120)
+
+
+class ReportIn(BaseModel):
+    format: Literal["buyer", "ifrs_s2", "bsec"]
+    period_from: str = Field(pattern=PERIOD)
+    period_to: str = Field(pattern=PERIOD)
+
+
+class ShareIn(BaseModel):
+    days: int = Field(default=14, ge=1, le=90)
+    include_documents: bool = Field(default=False, description="Let the viewer open the original bills behind each tonne")
+
+
+class InviteIn(BaseModel):
+    email: str = Field(pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", max_length=200)
+    role: Literal["owner", "manager", "viewer", "reviewer", "buyer", "lender"]
+
+
+class RoleIn(BaseModel):
+    role: Literal["owner", "manager", "viewer", "reviewer", "buyer", "lender"]
+
+
+class DeleteFactoryIn(BaseModel):
+    confirm_name: str = Field(min_length=1, max_length=200)

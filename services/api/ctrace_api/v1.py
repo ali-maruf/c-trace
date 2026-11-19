@@ -15,8 +15,9 @@ from ctrace import certificate
 from ctrace.public_data import provenance
 from ctrace.simulator import periods as period_range
 from ctrace.store import demo as demo_store
+from ctrace.store import orgadmin, registry, service
 from ctrace.store import reductions as red
-from ctrace.store import registry, service
+from ctrace.store import reports as rep
 from ctrace.store import verification as verif
 from ctrace.store.db import Conn, org_tx
 from ctrace.store.jobs import run_pending
@@ -36,14 +37,19 @@ from .schemas import (
     PERIOD,
     AssetIn,
     CorrectionIn,
+    DeleteFactoryIn,
     FactoryIn,
     InterventionIn,
+    InviteIn,
     OfficialFactorIn,
     OnboardingIn,
     ProductionIn,
     RejectIn,
+    ReportIn,
     ResolveIn,
     ReviewIn,
+    RoleIn,
+    ShareIn,
     SignIn,
 )
 
@@ -396,3 +402,157 @@ def reduction_certificate(request: Request, p: Auth, reduction_id: str) -> Respo
         pdf = certificate.render(r, f, red.signer_name(conn, r.get("signed_by")), sources)
     name = f"C-Trace_reduction_{r['activity']}_{r['reporting_from']}{'' if r['status'] == 'signed' else '_DRAFT'}.pdf"
     return Response(pdf, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+@router.get("/model-card", tags=["factors"], summary="The C-Trace model card (Verifier + extraction), rendered from computed metrics")
+def model_card() -> dict:
+    from ctrace import config as cfg
+    card = cfg.MODELS_DIR / "MODEL_CARD.md"
+    if not card.exists():
+        raise HTTPException(404, "Model card not generated yet (make train)")
+    return {"markdown": card.read_text(encoding="utf-8"), "verifier_version": cfg.CTRACE_VERIFIER_VERSION}
+
+
+# ------------------------------------------------------------------ C-Trace Reports and sharing
+@router.post("/factories/{factory_id}/reports", tags=["reports"], status_code=status.HTTP_201_CREATED,
+             summary="Build a buyer / IFRS S2 lender / BSEC report from verified data (narrative number-guarded)")
+def create_report(request: Request, p: Auth, factory_id: str, body: ReportIn) -> dict:
+    with scoped(request, p, MANAGE_ROLES | REVIEW_ROLES, "create reports") as conn:
+        return rep.build(conn, p.user_id, factory_id, body.format, body.period_from, body.period_to)
+
+
+@router.get("/factories/{factory_id}/reports", tags=["reports"])
+def list_reports(request: Request, p: Auth, factory_id: str) -> list[dict]:
+    with scoped(request, p) as conn:
+        return rep.list_reports(conn, factory_id)
+
+
+@router.get("/reports/{report_id}", tags=["reports"])
+def get_report(request: Request, p: Auth, report_id: str) -> dict:
+    with scoped(request, p) as conn:
+        return rep.get(conn, report_id)
+
+
+@router.get("/reports/{report_id}/download.{fmt}", tags=["reports"], response_model=None, summary="Report as PDF, JSON or ledger CSV")
+def download_report(request: Request, p: Auth, report_id: str, fmt: Annotated[str, Path(pattern="^(pdf|json|csv)$")]) -> Response:
+    with scoped(request, p) as conn:
+        r = rep.get(conn, report_id)
+        name = f"C-Trace_{r['format']}_{r['period_from']}_{r['period_to']}"
+        if fmt == "pdf":
+            _, data = rep.pdf(conn, report_id)
+            return Response(data, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{name}.pdf"'})
+        if fmt == "json":
+            import json as _json
+            return Response(_json.dumps(rep.as_json(conn, report_id), indent=1, default=str, ensure_ascii=False), media_type="application/json",
+                            headers={"Content-Disposition": f'attachment; filename="{name}.json"'})
+        return Response(rep.ledger_csv(conn, report_id), media_type="text/csv",
+                        headers={"Content-Disposition": f'attachment; filename="{name}_ledger.csv"'})
+
+
+@router.post("/reports/{report_id}/share", tags=["reports"], summary="Create a read-only, expiring share link (replaces any previous link)")
+def share_report(request: Request, p: Auth, report_id: str, body: ShareIn) -> dict:
+    with scoped(request, p, MANAGE_ROLES, "share reports") as conn:
+        return rep.share(conn, p.user_id, report_id, body.days, body.include_documents)
+
+
+@router.post("/reports/{report_id}/share/revoke", tags=["reports"])
+def revoke_share(request: Request, p: Auth, report_id: str) -> dict:
+    with scoped(request, p, MANAGE_ROLES, "revoke share links") as conn:
+        return rep.revoke(conn, p.user_id, report_id)
+
+
+@router.get("/reports/{report_id}/share/views", tags=["reports"], summary="Who opened the share link, and when (hashed client)")
+def share_views(request: Request, p: Auth, report_id: str) -> list[dict]:
+    with scoped(request, p, MANAGE_ROLES, "see share views") as conn:
+        rep.get(conn, report_id)
+        return rep.share_views(conn, report_id)
+
+
+def _client(request: Request) -> str:
+    return (request.headers.get("x-forwarded-for") or (request.client.host if request.client else "unknown")).split(",")[0].strip()
+
+
+def _shared(request: Request, token: str, what: str) -> dict:
+    with request.app.state.pool.connection() as conn:
+        try:
+            r = rep.resolve_share(conn, token)
+        except rep.ShareGone as exc:
+            raise HTTPException(410, str(exc)) from exc
+        rep.log_view(conn, r, what, _client(request), request.headers.get("user-agent"))
+        return r
+
+
+@router.get("/shared/{token}", tags=["shared"], summary="Public read-only view of a shared report (no account needed)")
+def shared_report(request: Request, token: str) -> dict:
+    r = _shared(request, token, "page")
+    with request.app.state.pool.connection() as conn:
+        return rep.shared_view(conn, r)
+
+
+@router.get("/shared/{token}/report.pdf", tags=["shared"], response_model=None)
+def shared_pdf(request: Request, token: str) -> Response:
+    r = _shared(request, token, "pdf")
+    with request.app.state.pool.connection() as conn, org_tx(conn, r["org_id"]):
+        _, data = rep.pdf(conn, str(r["id"]))
+    return Response(data, media_type="application/pdf", headers={"Content-Disposition": 'attachment; filename="C-Trace_shared_report.pdf"'})
+
+
+@router.get("/shared/{token}/documents/{document_id}", tags=["shared"], response_model=None,
+            summary="An original bill behind a shared report, only if the factory granted document access")
+def shared_document(request: Request, token: str, document_id: str) -> Response:
+    r = _shared(request, token, "document")
+    if not r["include_documents"]:
+        raise HTTPException(403, "The factory did not share its original bills with this link")
+    with request.app.state.pool.connection() as conn, org_tx(conn, r["org_id"]):
+        ok = conn.execute("""select 1 from documents d join activity_records ar on ar.document_id = d.id
+                             where d.id = %s and d.factory_id = %s and ar.period between %s and %s""",
+                          (document_id, r["factory_id"], r["period_from"], r["period_to"])).fetchone()
+        if not ok:
+            raise HTTPException(404, "document not part of this report")
+        doc, data = service.document_bytes(conn, document_id)
+    return Response(data, media_type=doc["media_type"], headers={"Content-Disposition": f'inline; filename="{doc["file_name"]}"',
+                                                                  "Cache-Control": "private, no-store"})
+
+
+# ------------------------------------------------------------------ settings: members, export, delete
+@router.get("/org/members", tags=["settings"])
+def get_members(request: Request, p: Auth) -> dict:
+    with scoped(request, p) as conn:
+        return orgadmin.members(conn)
+
+
+@router.post("/org/invites", tags=["settings"], status_code=status.HTTP_201_CREATED,
+             summary="Invite by email; the person joins with this role at their first sign-in")
+def create_invite(request: Request, p: Auth, body: InviteIn) -> dict:
+    if p.is_demo:
+        raise HTTPException(403, "Invitations are disabled in demo sandboxes")
+    with scoped(request, p, frozenset({"owner"}), "invite members") as conn:
+        return orgadmin.invite(conn, p.user_id, body.email, body.role)
+
+
+@router.put("/org/members/{member_id}", tags=["settings"])
+def update_member(request: Request, p: Auth, member_id: str, body: RoleIn) -> dict:
+    with scoped(request, p, frozenset({"owner"}), "change roles") as conn:
+        return orgadmin.set_role(conn, p.user_id, member_id, body.role)
+
+
+@router.delete("/org/members/{member_id}", tags=["settings"], status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+def delete_member(request: Request, p: Auth, member_id: str) -> Response:
+    with scoped(request, p, frozenset({"owner"}), "remove members") as conn:
+        orgadmin.remove(conn, p.user_id, member_id)
+    return Response(status_code=204)
+
+
+@router.get("/factories/{factory_id}/export.zip", tags=["settings"], response_model=None, summary="Export all of the factory's data")
+def export_factory(request: Request, p: Auth, factory_id: str) -> Response:
+    with scoped(request, p, MANAGE_ROLES, "export data") as conn:
+        data = orgadmin.export_zip(conn, p.user_id, factory_id)
+    return Response(data, media_type="application/zip", headers={"Content-Disposition": 'attachment; filename="C-Trace_export.zip"'})
+
+
+@router.post("/factories/{factory_id}/delete", tags=["settings"], status_code=status.HTTP_204_NO_CONTENT, response_model=None,
+             summary="Permanently delete a factory and all its data (owner; confirm with the exact name)")
+def delete_factory(request: Request, p: Auth, factory_id: str, body: DeleteFactoryIn) -> Response:
+    with scoped(request, p, frozenset({"owner"}), "delete factory data") as conn:
+        orgadmin.delete_factory(conn, p.user_id, factory_id, body.confirm_name)
+    return Response(status_code=204)
