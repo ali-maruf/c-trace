@@ -1,0 +1,25 @@
+{
+  "factory_id": "DEMO-001",
+  "name": "Nodi Knit Composite Ltd. (fictional demo factory)",
+  "location": "Gazipur, Bangladesh",
+  "factory_type": "knit_composite",
+  "workers": 3200,
+  "has_wet_processing": 1,
+  "captive_gas_gen": 1,
+  "solar": [
+    {
+      "from": "2026-04",
+      "kwp": 600
+    }
+  ],
+  "interventions": [
+    {
+      "from": "2026-01",
+      "measure": "Boiler economiser + steam-trap repair"
+    },
+    {
+      "from": "2026-04",
+      "measure": "600 kWp rooftop solar"
+    }
+  ]
+}

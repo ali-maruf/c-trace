@@ -1,0 +1,100 @@
+{
+  "brand": "C-Trace",
+  "model": "C-Trace Verifier v1",
+  "trained_on": "C-Trace simulator v1 (600 factories \u00d7 36 months, seed 42)",
+  "trained_date": "2026-11-19",
+  "features": [
+    "type_code",
+    "log_workers",
+    "has_wet_processing",
+    "captive_gas_gen",
+    "solar_kwp",
+    "log_pieces",
+    "month_sin",
+    "month_cos",
+    "cdd"
+  ],
+  "targets": [
+    "gas_m3",
+    "grid_kwh",
+    "diesel_l"
+  ],
+  "algorithm": "HistGradientBoostingRegressor (log1p target) + factory LOO-median calibration + IsolationForest",
+  "metrics": {
+    "regression": {
+      "gas_m3": {
+        "MAPE_fleet_model_new_factory": 0.2607,
+        "MAPE_after_factory_calibration": 0.0577,
+        "sigma_log_residual": 0.0659
+      },
+      "grid_kwh": {
+        "MAPE_fleet_model_new_factory": 0.3141,
+        "MAPE_after_factory_calibration": 0.079,
+        "sigma_log_residual": 0.0881
+      },
+      "diesel_l": {
+        "MAPE_fleet_model_new_factory": 0.43,
+        "MAPE_after_factory_calibration": 0.2729,
+        "sigma_log_residual": 0.321
+      }
+    },
+    "detection": {
+      "gas_m3": {
+        "ROC_AUC": 0.9994,
+        "precision@z3": 0.7283,
+        "recall@z3": 0.9963,
+        "F1@z3": 0.8414,
+        "naive_MoM_rule_precision": 0.3062,
+        "naive_MoM_rule_recall": 0.8104,
+        "naive_MoM_rule_F1": 0.4444,
+        "recall_by_anomaly_type": {
+          "under_reporting (\u00d70.4\u20130.7)": 1.0,
+          "unit_error (\u00d71000 or \u00f71000)": 1.0,
+          "double_count (\u00d72)": 1.0,
+          "over_reporting (\u00d71.4\u20131.8)": 0.985
+        },
+        "n_injected": 269,
+        "n_rows": 5400
+      },
+      "grid_kwh": {
+        "ROC_AUC": 0.997,
+        "precision@z3": 0.6286,
+        "recall@z3": 0.9962,
+        "F1@z3": 0.7708,
+        "naive_MoM_rule_precision": 0.3761,
+        "naive_MoM_rule_recall": 0.8075,
+        "naive_MoM_rule_F1": 0.5132,
+        "recall_by_anomaly_type": {
+          "under_reporting (\u00d70.4\u20130.7)": 0.986,
+          "unit_error (\u00d71000 or \u00f71000)": 1.0,
+          "double_count (\u00d72)": 1.0,
+          "over_reporting (\u00d71.4\u20131.8)": 1.0
+        },
+        "n_injected": 265,
+        "n_rows": 5400
+      },
+      "diesel_l": {
+        "ROC_AUC": 0.8576,
+        "precision@z3": 0.825,
+        "recall@z3": 0.364,
+        "F1@z3": 0.5051,
+        "naive_MoM_rule_precision": 0.0735,
+        "naive_MoM_rule_recall": 0.7316,
+        "naive_MoM_rule_F1": 0.1336,
+        "recall_by_anomaly_type": {
+          "under_reporting (\u00d70.4\u20130.7)": 0.175,
+          "unit_error (\u00d71000 or \u00f71000)": 1.0,
+          "double_count (\u00d72)": 0.262,
+          "over_reporting (\u00d71.4\u20131.8)": 0.075
+        },
+        "n_injected": 272,
+        "n_rows": 5400
+      }
+    }
+  },
+  "z_warn": 2.5,
+  "z_flag": 3.0,
+  "n_train_factories": 360,
+  "n_cal_factories": 90,
+  "n_test_factories": 150
+}
