@@ -1,6 +1,7 @@
 """Request bodies for the C-Trace API (Pydantic v2). Responses are the store's JSON-ready dicts."""
 from __future__ import annotations
 
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -63,3 +64,15 @@ class CorrectionIn(BaseModel):
 
 class RejectIn(BaseModel):
     reason: str = Field(min_length=3, max_length=1000)
+
+
+class OfficialFactorIn(BaseModel):
+    activity: Literal["grid_electricity"] = "grid_electricity"
+    region: str = Field(default="BGD", pattern=r"^[A-Z]{3}$")
+    kgco2e_per_unit: float = Field(gt=0, le=2, description="kgCO2e per kWh")
+    unit: Literal["kWh"] = "kWh"
+    valid_from: date
+    valid_to: date | None = None
+    source: str = Field(min_length=5, max_length=300, description="Publication name, e.g. the national grid emission factor notice")
+    source_url: str = Field(pattern=r"^https?://", max_length=500)
+    notes: str | None = Field(default=None, max_length=1000)

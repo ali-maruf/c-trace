@@ -107,3 +107,13 @@ def current_principal(request: Request, authorization: str | None = Header(defau
     else:
         raise HTTPException(400, f"You belong to several organisations; send the {ORG_HEADER} header")
     return Principal(user_id=user_id, email=claims.get("email"), org_id=chosen["org_id"], role=chosen["role"])
+
+
+def platform_admin_emails() -> set[str]:
+    return {e.strip().lower() for e in os.getenv("CTRACE_PLATFORM_ADMIN_EMAILS", "").split(",") if e.strip()}
+
+
+def require_platform_admin(p: Principal) -> None:
+    """Reference data (emission factors) is global, so only C-Trace platform admins may enter it."""
+    if not p.email or p.email.lower() not in platform_admin_emails():
+        raise HTTPException(403, "Only C-Trace platform admins can enter official emission factors.")

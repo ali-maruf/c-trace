@@ -37,7 +37,11 @@ correlate logs.
 | `GET /v1/activity-records/{id}/audit` | Audit trail (who, when, before, after, reason) |
 | `GET /v1/factories/{id}/ledger?period=&activity=` | Trace ledger: trace ID, bill, SHA-256, factor ID, version, source URL, arithmetic |
 | `GET /v1/factories/{id}/summary?period_from=&period_to=` | Monthly Scope 1/2 totals, intensity, data status |
-| `GET /v1/factors?activity=` | Emission factor registry (public reference data) |
+| `GET /v1/factors?activity=` | Emission factor registry (public reference data): default and official factors, versions, source URLs |
+| `POST /v1/admin/factors` | Platform admins: enter the official national grid factor (source URL, validity window; audit-logged) |
+| `GET /v1/factories/{id}/weather` | Monthly T2M and cooling degree days, each labelled NASA POWER or climatology |
+| `GET /v1/factories/{id}/benchmark` | Climate TRACE sector context for annualised Scope 1 (a signal, not a grade) |
+| `GET /v1/data-sources` | Provenance of every public dataset (no auth) |
 | `POST /v1/stateless/extract` · `/analyze` · `/report` | Prototype endpoints that store nothing |
 
 Verification runs, reductions, reports and sharing, and the Copilot come in later phases.

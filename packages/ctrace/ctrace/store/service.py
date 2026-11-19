@@ -26,6 +26,7 @@ from ..llm import LLMCall
 from ..pipeline import tariff_corrections
 from .db import Conn, org_tx
 from .jobs import enqueue, handler
+from .registry import statutory_scope2
 from .storage import EXT, Storage, default_storage, document_key
 
 WRITE_ROLES = {"owner", "manager", "reviewer"}
@@ -392,6 +393,7 @@ def summary(conn: Conn, factory_id: str, period_from: str | None = None, period_
         "pieces": int(pieces) if pieces else None,
         "kgco2e_per_piece": round(total * 1000 / pieces, 4) if pieces else None,
         "by_source_tco2e": {a: round(float(s[a].sum()), 4) for a in ACTIVITIES if a in s},
+        "scope2_statutory": statutory_scope2(conn, factory_id, list(s.period)),
     }
     months = [clean(r) for r in s.to_dict(orient="records")]
     return {**base, "period_from": period_from or (s.period.min() if len(s) else None),

@@ -1,0 +1,42 @@
+{
+  "owid_energy": {
+    "source": "Our World in Data — energy dataset (Ember electricity data)",
+    "url": "https://raw.githubusercontent.com/owid/energy-data/master/owid-energy-data.csv",
+    "licence": "CC BY 4.0 (Our World in Data); electricity data from Ember (CC BY 4.0)",
+    "files": [
+      "bd_electricity_owid_ember.csv"
+    ],
+    "notes": "carbon_intensity_elec is lifecycle gCO2e/kWh of generation; used as the location-based Scope 2 factor.",
+    "retrieved_at": "2026-11-19T19:07:23+00:00"
+  },
+  "owid_co2": {
+    "source": "Our World in Data — CO2 and greenhouse gas emissions dataset",
+    "url": "https://raw.githubusercontent.com/owid/co2-data/master/owid-co2-data.csv",
+    "licence": "CC BY 4.0 (Our World in Data); electricity data from Ember (CC BY 4.0)",
+    "files": [
+      "bd_emissions_owid.csv"
+    ],
+    "notes": "National context only.",
+    "retrieved_at": "2026-11-19T19:07:23+00:00"
+  },
+  "nasa_power_+24.0_+90.5": {
+    "source": "NASA POWER monthly T2M (MERRA-2)",
+    "url": "https://power.larc.nasa.gov/api/temporal/monthly/point",
+    "licence": "NASA POWER data are free and open; cite NASA Langley Research Center POWER Project",
+    "files": [
+      "weather/power_+24.0_+90.5.csv"
+    ],
+    "notes": "T2M monthly mean at grid cell (24.0, 90.5); 57 months.",
+    "retrieved_at": "2026-11-19T19:07:26+00:00"
+  },
+  "climate_trace_bgd_textiles": {
+    "source": "Climate TRACE — emissions sources (API v7)",
+    "url": "https://api.climatetrace.org/v7/sources?gadmId=BGD&subsectors=textiles-leather-apparel&gas=co2e_100yr",
+    "licence": "CC BY 4.0 (Climate TRACE); some country-level subsector data from CEDS/EDGAR under their own terms",
+    "files": [
+      "climate_trace_bgd_textiles.csv"
+    ],
+    "notes": "Years [2025]; modelled estimates (activity from capacity × utilisation), t CO2e (100-yr GWP).",
+    "retrieved_at": "2026-11-19T19:09:29+00:00"
+  }
+}

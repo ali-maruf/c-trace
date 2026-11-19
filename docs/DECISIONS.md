@@ -185,3 +185,36 @@ without a key.
 The stateless `extract` and `report` endpoints call the LLM synchronously. They are limited to
 `CTRACE_LLM_RATE_PER_MIN` (20) per user per API instance (in-process sliding window). Uploads are capped at 50 files
 per request, and their extraction runs in the worker one job at a time.
+
+## Phase 4 — factor registry and public data
+
+### D28. Climate TRACE v7, not v6
+The starter script called `GET /v6/assets`. Climate TRACE's data page now points to API v7, and its official Python
+wrapper (`climatetracecoalition/climate-trace-tools`) uses `GET /v7/sources?gadmId=BGD&subsectors=…&year=&gas=co2e_100yr`.
+We verified that with a live request and recorded the response as a test fixture. The data is CC BY 4.0 and the
+API is beta ("keep volume low"), so we fetch one year, page by page, by script only. It returns 3,379 Bangladeshi
+`textiles-leather-apparel` sources whose values are identical across 2023–2025, because they are modelled from capacity.
+
+### D29. The benchmark compares Scope 1 only and names no other factory
+Climate TRACE estimates are modelled, mostly from on-site combustion. The benchmark places the factory's annualised
+Scope 1 (last 12 months × 12 / n) in that distribution, shows quantiles and a percentile, and carries the caveat and
+the attribution. It is never used to grade a month. Other facilities' names stay in the CSV (public data) and are
+not shown in the UI.
+
+### D30. NASA POWER weather
+`/api/temporal/monthly/point`, `community=SB`, T2M. The response is keyed `YYYYMM`, with month `13` as the annual mean
+and fill value -999. On 2026-11-20 values were published through 2026-09. The series is cached per 0.5° cell (the
+demo factory uses cell 24.0, 90.5) and copied into `weather_monthly` at seed time. Months without a POWER value fall
+back to the documented Dhaka climatology, and the API labels every month with its source. CDD keeps the simulator's
+definition (max(0, T − 24 °C) × days), so real and simulated weather are comparable.
+
+### D31. Official grid factor sits alongside, never instead
+The ledger keeps the location-based Ember factor. A C-Trace platform admin (`CTRACE_PLATFORM_ADMIN_EMAILS`; factors are
+global reference data, so organisation owners cannot write them) can enter the official national grid factor with its
+publication URL and validity window. Overlapping windows are refused, and the entry is audit-logged. The summary then
+reports `scope2_statutory` for the months it covers. No official value is seeded: we have no verified publication
+for it, and typing a number in would break the brief's "do not invent" rule.
+
+### D32. Provenance file
+`data/public/PROVENANCE.json` records source, URL, licence, files and retrieval time for every fetched dataset.
+`GET /v1/data-sources` serves it, so the UI and reports can cite it.

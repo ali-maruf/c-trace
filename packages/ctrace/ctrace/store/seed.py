@@ -18,6 +18,7 @@ from .db import Conn, connect, org_tx
 from .factors_sync import sync_factors
 from .jobs import run_pending
 from .migrate import migrate
+from .registry import sync_weather
 from .storage import Storage
 
 DEMO_EMAIL = "demo@c-trace.test"   # reserved .test domain: not a real mailbox
@@ -66,6 +67,7 @@ def seed_demo(conn: Conn, reset: bool = False, storage: Storage | None = None) -
         for path in sorted(config.BILLS_DIR.glob("*.pdf")):
             service.ingest_document(conn, DEMO_USER_ID, fid, path.name, path.read_bytes(), "application/pdf", storage)
 
+    sync_weather(conn, DEMO_LAT, DEMO_LON)
     counts = run_pending(conn, "seed")
     return {"org_id": org_id, "factory_id": fid, "user_id": DEMO_USER_ID, "created": True, "jobs": counts}
 

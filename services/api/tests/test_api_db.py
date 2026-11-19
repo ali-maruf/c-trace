@@ -293,3 +293,45 @@ def test_too_many_files_in_one_upload(client, small_factory):
     files = [("files", (f"f{i}.pdf", b"%PDF-1.4 x" + bytes([i]), "application/pdf")) for i in range(51)]
     r = client.post(f"/v1/factories/{small_factory['factory_id']}/documents", headers=small_factory["headers"], files=files)
     assert r.status_code == 413
+
+
+# ------------------------------------------------------------------ phase 4: registry, weather, benchmark
+def test_official_grid_factor_admin_path(client, owner_conn, demo, token, monkeypatch):
+    payload = {"kgco2e_per_unit": 0.67, "valid_from": "2025-07-01", "valid_to": "2026-06-30",
+               "source": "Fictional test notice (not an official value)", "source_url": "https://example.org/grid-ef"}
+    member = auth(token(demo["user_id"], "demo@c-trace.test"))
+    assert client.post("/v1/admin/factors", headers=member, json=payload).status_code == 403
+    monkeypatch.setenv("CTRACE_PLATFORM_ADMIN_EMAILS", "demo@c-trace.test")
+    r = client.post("/v1/admin/factors", headers=member, json=payload)
+    assert r.status_code == 201, r.text
+    f = r.json()
+    assert f["kind"] == "official" and f["id"].startswith("official-bgd-grid-20250701")
+    assert client.post("/v1/admin/factors", headers=member, json={**payload, "valid_from": "2026-01-01"}).status_code == 422  # overlap
+
+    summary = client.get(f"/v1/factories/{demo['factory_id']}/summary", headers=member).json()["totals"]
+    stat = summary["scope2_statutory"]
+    assert stat["months_covered"] == 12 and stat["factor_ids"] == [f["id"]]
+    led = client.get(f"/v1/factories/{demo['factory_id']}/ledger", headers=member,
+                     params={"activity": "grid_electricity"}).json()
+    kwh = sum(x["quantity"] for x in led if "2025-07" <= x["period"] <= "2026-06")
+    assert stat["scope2_statutory_tco2e"] == pytest.approx(kwh * 0.67 / 1000, rel=1e-6)
+    assert all(x["factor_id"].startswith("ember-bgd-") for x in led)  # the ledger itself is unchanged
+    with org_tx(owner_conn, demo["org_id"], demo["user_id"]):
+        assert owner_conn.execute("select count(*) n from audit_log where action = 'factor.create_official'").fetchone()["n"] == 1
+    owner_conn.execute("delete from emission_factors where id = %s", (f["id"],))
+
+
+def test_factory_weather_has_sources(client, demo, demo_headers):
+    rows = client.get(f"/v1/factories/{demo['factory_id']}/weather", headers=demo_headers).json()
+    by = {r["period"]: r for r in rows}
+    assert len(rows) == 22 and by["2025-07"]["source"].startswith("NASA POWER") and by["2025-07"]["cdd"] > 100
+    assert by["2026-10"]["source"].startswith("Dhaka monthly climatology")
+
+
+def test_benchmark_is_context_not_a_grade(client, demo, demo_headers):
+    b = client.get(f"/v1/factories/{demo['factory_id']}/benchmark", headers=demo_headers).json()
+    assert b["n_facilities"] > 1000 and 0 <= b["factory_percentile"] <= 100
+    assert b["quantiles_tco2e"]["p10"] <= b["quantiles_tco2e"]["p50"] <= b["quantiles_tco2e"]["p90"]
+    assert "not" in b["caveat"] and b["licence"].startswith("CC BY 4.0") and b["factory_months_used"] == 12
+    sources = client.get("/v1/data-sources").json()
+    assert {"owid_energy", "climate_trace_bgd_textiles"} <= set(sources)

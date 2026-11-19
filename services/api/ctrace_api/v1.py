@@ -10,11 +10,13 @@ import pandas as pd
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import Response
 
-from ctrace.store import service
+from ctrace.public_data import provenance
+from ctrace.simulator import periods as period_range
+from ctrace.store import registry, service
 from ctrace.store.db import Conn, org_tx
 
-from .auth import MANAGE_ROLES, RAW_DOCUMENT_ROLES, READ_ROLES, REVIEW_ROLES, Principal, current_principal
-from .schemas import PERIOD, AssetIn, CorrectionIn, FactoryIn, InterventionIn, ProductionIn, RejectIn, ReviewIn
+from .auth import MANAGE_ROLES, RAW_DOCUMENT_ROLES, READ_ROLES, REVIEW_ROLES, Principal, current_principal, require_platform_admin
+from .schemas import PERIOD, AssetIn, CorrectionIn, FactoryIn, InterventionIn, OfficialFactorIn, ProductionIn, RejectIn, ReviewIn
 
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 MAX_FILES_PER_UPLOAD = 50
@@ -214,3 +216,47 @@ def list_factors(request: Request,
         rows = conn.execute("select * from emission_factors where %s::text is null or activity = %s order by activity, year nulls first",
                             (activity, activity)).fetchall()
     return [service.clean(r) for r in rows]
+
+
+@router.post("/admin/factors", tags=["factors"], status_code=status.HTTP_201_CREATED,
+             summary="Enter the official national grid emission factor (C-Trace platform admins only)")
+def add_official_factor(request: Request, p: Auth, body: OfficialFactorIn) -> dict:
+    require_platform_admin(p)
+    with request.app.state.pool.connection() as conn, conn.transaction():
+        try:
+            row = registry.add_official_factor(conn, user_id=p.user_id, **body.model_dump())
+        except registry.FactorError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        with org_tx(conn, p.org_id, p.user_id):
+            service.audit(conn, p.user_id, "factor.create_official", "emission_factor", row["id"], None, row)
+    return service.clean(row)
+
+
+@router.get("/factories/{factory_id}/weather", tags=["emissions"], summary="Monthly temperature and cooling degree days, with source")
+def get_weather(request: Request, p: Auth, factory_id: str, period_from: Period = None, period_to: Period = None) -> list[dict]:
+    with scoped(request, p) as conn:
+        f = service.get_factory(conn, factory_id)
+        known = sorted(set(service.production_frame(conn, factory_id).period) |
+                       {r["period"] for r in conn.execute("select distinct period from ledger_entries where factory_id = %s", (factory_id,))})
+        if not known and not (period_from and period_to):
+            return []
+        ps = period_range(period_from or known[0], period_to or known[-1])
+        return [service.clean(r) for r in registry.factory_weather(conn, f, ps).to_dict(orient="records")]
+
+
+@router.get("/factories/{factory_id}/benchmark", tags=["emissions"],
+            summary="Climate TRACE sector context: where the factory's annualised Scope 1 sits (a signal, not a grade)")
+def get_benchmark(request: Request, p: Auth, factory_id: str) -> dict:
+    with scoped(request, p) as conn:
+        months = service.summary(conn, factory_id)["months"]
+    last = months[-12:]
+    scope1 = round(sum(m["scope1_t"] for m in last) * 12 / len(last), 1) if last else None
+    out = registry.benchmark(scope1)
+    if out is None:
+        raise HTTPException(404, "Climate TRACE benchmark data not loaded (scripts/fetch_climate_trace.py)")
+    return {**out, "factory_months_used": len(last)}
+
+
+@router.get("/data-sources", tags=["factors"], summary="Public datasets C-Trace uses, with URL, licence and retrieval time")
+def data_sources() -> dict:
+    return provenance()

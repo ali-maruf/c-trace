@@ -69,8 +69,10 @@ eval-extraction: $(MODEL) ## Score extraction on data/eval/bills (rules; LLM met
 eval-bills: ## Regenerate the fictional extraction eval set (macOS: Bangla rendering uses CoreText via swift)
 	$(RUN) python scripts/make_eval_bills.py
 
-fetch-data: ## Refresh public datasets (needs internet)
+fetch-data: ## Refresh OWID, NASA POWER (demo location) and Climate TRACE data with provenance (needs internet)
 	$(RUN) python scripts/fetch_public_data.py
+	$(RUN) python scripts/fetch_weather.py
+	$(RUN) python scripts/fetch_climate_trace.py
 
 requirements: ## Re-export requirements.txt from uv.lock (for Streamlit Community Cloud)
 	$(UV) export --frozen --no-hashes --no-dev --all-packages --format requirements-txt -o requirements.txt
