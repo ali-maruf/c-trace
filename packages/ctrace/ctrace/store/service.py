@@ -446,6 +446,27 @@ def confirm_record(conn: Conn, user_id: str, record_id: str, reason: str | None 
     return _review(conn, user_id, record_id, "activity_record.confirm", "confirmed", reason=reason)
 
 
+def confirm_clean(conn: Conn, user_id: str, factory_id: str, reason: str) -> dict:
+    """Confirm every extracted record that has no extraction issue and no pending correction suggestion.
+    Records with warnings stay in the queue for one-by-one review. One audit entry per record."""
+    if not reason or len(reason.strip()) < 3:
+        raise ValueError("Bulk confirmation needs a reason (stored in the audit log)")
+    recs = records_frame(conn, factory_id)
+    flagged = {s["activity_record_id"] for s in suggestions(conn, factory_id)}
+    clean_ids = [str(r.id) for r in recs.itertuples()
+                 if r.status == "extracted" and not list(r.issues or []) and str(r.id) not in flagged
+                 and r.quantity is not None and r.period is not None and r.activity is not None]
+    for rid in clean_ids:
+        before = get_record(conn, rid, lock=True)
+        after = conn.execute("update activity_records set status = 'confirmed', confirmed_by = %s, confirmed_at = now(), updated_at = now() "
+                             "where id = %s returning *", (user_id, rid)).fetchone()
+        audit(conn, user_id, "activity_record.confirm", "activity_record", rid, before, {**(after or {}), "reason": reason, "bulk": True})
+    if clean_ids:
+        rebuild_ledger(conn, factory_id)
+    remaining = int((records_frame(conn, factory_id).status == "extracted").sum())
+    return {"confirmed": len(clean_ids), "still_to_review": remaining}
+
+
 def correct_record(conn: Conn, user_id: str, record_id: str, changes: dict, reason: str) -> dict:
     unknown = set(changes) - CORRECTABLE_FIELDS
     if unknown:

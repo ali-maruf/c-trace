@@ -55,7 +55,7 @@ export default function ReportsPage() {
           {create.error && <div className="mt-3"><ErrorState error={create.error} /></div>}
         </Card>
       )}
-      <div className="mt-4 grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+      <div className="mt-4 grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)]">
         <Card className="p-2 sm:p-2">
           {list.isLoading ? <Loading /> : !list.data?.length ? <p className="p-3 text-sm text-slate">No reports yet.</p> : (
             <ul aria-label="Reports">{list.data.map((r) => (
@@ -85,13 +85,13 @@ function ReportPreview({ r, canShare }: { r: Report; canShare: boolean }) {
         {r.title}
       </CardTitle>
       <p className="text-sm leading-relaxed">{r.narrative}</p>
-      <div className="tabular mt-4 grid gap-3 sm:grid-cols-4">
+      <div className="tabular mt-4 grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
         <Metric label="Total Scope 1 + 2" value={`${n(f.total_tco2e, 1)} t`} />
         <Metric label="Scope 1" value={`${n(f.scope1_tco2e, 1)} t`} />
         <Metric label="Scope 2 (location)" value={`${n(f.scope2_location_tco2e, 1)} t`} sub={f.scope2_statutory_tco2e !== undefined ? `Statutory ${n(f.scope2_statutory_tco2e, 1)} t` : undefined} />
         <Metric label="Intensity" value={f.kgco2e_per_piece ? `${f.kgco2e_per_piece} kg/pc` : "—"} />
       </div>
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
+      <div className="mt-4 grid gap-4 2xl:grid-cols-2">
         <div>
           <h3 className="mb-1 text-sm font-medium">Energy by source</h3>
           <table className="tabular w-full text-sm"><tbody>{Object.entries(f.energy_by_source).map(([a, v]) => (

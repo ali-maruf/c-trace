@@ -725,3 +725,23 @@ def test_copilot_number_guard_and_llm_loop_with_fake_client():
     assert "number guard" in invented[-1]["answer"]["method"]
     uncited = list(answer_llm("Total?", tools, "en", Fake("The factory emitted 15,466.6 tCO2e.")))
     assert uncited[-1]["answer"]["method"].startswith("offline (Claude answer not accepted)")
+
+
+def test_confirm_clean_leaves_flagged_bills(client, owner_conn, token):
+    d = make_demo_copy(client, owner_conn, token)
+    fid, h = d["factory_id"], d["headers"]
+    r = client.post(f"/v1/factories/{fid}/activity-records/confirm-clean", headers=h, json={"reason": "Bulk check against bills"})
+    assert r.status_code == 200 and r.json() == {"confirmed": 64, "still_to_review": 1}       # the dropped-digit bill stays
+    left = client.get(f"/v1/factories/{fid}/activity-records", headers=h, params={"status": "extracted"}).json()
+    assert [x["doc_name"] for x in left] == ["2025-09_natural_gas.pdf"]
+
+
+def test_concurrent_demo_sandboxes_each_get_all_their_bills(client):
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(4) as ex:
+        responses = list(ex.map(lambda _: client.post("/v1/demo/start"), range(8)))
+    assert [r.status_code for r in responses] == [200] * 8
+    starts = [r.json() for r in responses]
+    for d in starts:
+        s = client.get(f"/v1/factories/{d['factory_id']}/summary", headers={"Authorization": f"Bearer {d['token']}"}).json()
+        assert s["data_status"]["documents"] == 65 and sum(s["data_status"]["records_by_status"].values()) == 65

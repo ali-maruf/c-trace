@@ -40,6 +40,10 @@ export default function ReviewPage() {
     qc.invalidateQueries();
   }, [qc]);
   const confirm = useMutation({ mutationFn: (r: ActivityRecord) => post(`/v1/activity-records/${r.id}/confirm`, { reason: "Checked against the original bill" }), onSuccess: done });
+  const bulk = useMutation({
+    mutationFn: () => post<{ confirmed: number; still_to_review: number }>(`/v1/factories/${id}/activity-records/confirm-clean`, { reason: "Bulk-confirmed: no extraction warning and no correction suggestion" }),
+    onSuccess: done,
+  });
   const accept = useMutation({
     mutationFn: (s: Suggestion) => post(`/v1/activity-records/${s.activity_record_id}/correct`, { quantity: s.suggested_quantity, reason: `Accepted C-Trace suggestion: ${s.explanation}` }),
     onSuccess: done,
@@ -75,6 +79,13 @@ export default function ReviewPage() {
         }
       />
       {!canReview && me.data && <p className="mb-3 rounded-md bg-teal-light px-3 py-2 text-sm text-teal-dark">Your role ({me.data.role}) can view but not confirm or correct records.</p>}
+      {canReview && todo > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-3 rounded-md border border-line px-3 py-2 text-sm">
+          <span className="flex-1 text-slate">Bills with no warning and no suggestion can be confirmed together; flagged bills stay here for one-by-one review.</span>
+          <Button size="sm" variant="secondary" busy={bulk.isPending} onClick={() => bulk.mutate()}><Check className="size-4" aria-hidden /> Confirm all clean bills</Button>
+        </div>
+      )}
+      {bulk.data && <p role="status" className="mb-3 text-sm text-teal">{bulk.data.confirmed} confirmed · {bulk.data.still_to_review} left to review</p>}
       {records.isLoading ? <Loading /> : !rec ? (
         <Empty title="Nothing left to review">Every bill has been confirmed, corrected or rejected. Run verification next.</Empty>
       ) : (

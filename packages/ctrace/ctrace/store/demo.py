@@ -45,8 +45,10 @@ def purge_expired(owner_conn: Conn) -> int:
     rows = owner_conn.execute(
         "delete from organizations where is_demo and created_at < now() - make_interval(hours => %s) returning id",
         (SANDBOX_TTL_HOURS,)).fetchall()
-    owner_conn.execute("delete from users u where u.email like 'demo+%%@c-trace.test' and not exists "
-                       "(select 1 from memberships m where m.user_id = u.id)")
+    # only demo identities older than a sandbox's lifetime: a brand-new one from a concurrent start has no membership *yet*
+    owner_conn.execute("delete from users u where u.email like 'demo+%%@c-trace.test' "
+                       "and u.created_at < now() - make_interval(hours => %s) "
+                       "and not exists (select 1 from memberships m where m.user_id = u.id)", (SANDBOX_TTL_HOURS,))
     return len(rows)
 
 
@@ -58,7 +60,7 @@ def start_sandbox(owner_conn: Conn) -> dict:
     service.ensure_user(owner_conn, uid, email, "Demo visitor (fictional)")
     org_id = service.create_organization(owner_conn, "Nodi Knit Composite Ltd. — live demo sandbox (fictional)", uid, is_demo=True)
     fid = load_demo_factory(owner_conn, org_id, uid)
-    counts = run_pending(owner_conn, f"demo:{uid[:8]}")
+    counts = run_pending(owner_conn, f"demo:{uid[:8]}", org_id=org_id)   # only this sandbox's bills, and wait for all of them
     now = int(time.time())
     token = jwt.encode({"sub": uid, "email": email, "aud": "authenticated", "iss": DEMO_ISSUER, "role": "authenticated",
                         "iat": now, "exp": now + TOKEN_HOURS * 3600}, signing_key(owner_conn), algorithm="ES256")

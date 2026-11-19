@@ -67,7 +67,10 @@ export default function CopilotPage() {
     const idx = turns.length;
     setTurns((t) => [...t, { q: question, tools: [] }]);
     try {
-      for await (const e of stream(id, question, lang)) {
+      // a question typed in Bangla gets a Bangla answer, whatever the toggle says
+      const language = /[\u0980-\u09FF]/.test(question) ? "bn" : lang;
+      if (language !== lang) setLang(language);
+      for await (const e of stream(id, question, language)) {
         setTurns((t) => t.map((x, i) => (i !== idx ? x : e.type === "tool" ? { ...x, tools: [...x.tools, e.tool ?? ""] } : { ...x, answer: e.answer })));
         endRef.current?.scrollIntoView({ behavior: "smooth" });
       }

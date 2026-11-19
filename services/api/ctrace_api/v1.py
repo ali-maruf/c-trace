@@ -160,7 +160,7 @@ async def upload_documents(request: Request, p: Auth, factory_id: str, files: An
     new_jobs = [o["job_id"] for o in out if o["job_id"]]
     if new_jobs and inline_jobs():  # hosts without a worker (serverless): read the bills inside this request
         with request.app.state.pool.connection() as conn:
-            run_pending(conn, "api-inline", max_jobs=len(new_jobs) + 5)
+            run_pending(conn, "api-inline", org_id=p.org_id)
         with scoped(request, p) as conn:
             for o in out:
                 if o["job_id"]:
@@ -173,7 +173,7 @@ def inline_jobs() -> bool:
 
 
 # ------------------------------------------------------------------ live demo and onboarding
-_demo_limiter = SlidingWindowPerHour()
+_demo_limiter = SlidingWindowPerHour(int(os.getenv("CTRACE_DEMO_RATE_PER_HOUR", "10")))
 
 
 @router.post("/demo/start", tags=["auth"], summary="Start a private live-demo sandbox (fictional data) and get a demo token")
@@ -249,6 +249,13 @@ def list_suggestions(request: Request, p: Auth, factory_id: str) -> list[dict]:
     with scoped(request, p) as conn:
         service.get_factory(conn, factory_id)
         return service.suggestions(conn, factory_id)
+
+
+@router.post("/factories/{factory_id}/activity-records/confirm-clean", tags=["review"],
+             summary="Confirm every bill with no warning and no pending suggestion; flagged bills stay in the queue")
+def confirm_clean(request: Request, p: Auth, factory_id: str, body: RejectIn) -> dict:
+    with scoped(request, p, REVIEW_ROLES, "confirm records") as conn:
+        return service.confirm_clean(conn, p.user_id, factory_id, body.reason)
 
 
 @router.post("/activity-records/{record_id}/confirm", tags=["review"])

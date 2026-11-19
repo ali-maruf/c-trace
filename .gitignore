@@ -12,3 +12,4 @@ data/storage/
 .secrets/
 data/cache/
 .claude/launch.json
+.playwright/

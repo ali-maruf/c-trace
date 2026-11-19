@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import socket
+import time
 import traceback
 from collections.abc import Callable
 from typing import Any
@@ -40,20 +41,28 @@ def enqueue(conn: Conn, org_id: str, kind: str, payload: dict, max_attempts: int
     return int(row["id"])
 
 
-def claim(conn: Conn, worker_id: str) -> dict | None:
+def claim(conn: Conn, worker_id: str, org_id: str | None = None) -> dict | None:
+    """Claim one due job (optionally only one organisation's) with FOR UPDATE SKIP LOCKED."""
     with conn.transaction():
         return conn.execute(
             f"""update jobs set status = 'running', locked_at = now(), locked_by = %s, attempts = attempts + 1
                 where id = (
                   select id from jobs
-                  where (status = 'queued' and run_after <= now())
-                     or (status = 'running' and locked_at < now() - interval '{STALE_AFTER}')
+                  where ((status = 'queued' and run_after <= now())
+                         or (status = 'running' and locked_at < now() - interval '{STALE_AFTER}'))
+                    and (%s::uuid is null or org_id = %s::uuid)
                   order by run_after, id
                   for update skip locked
                   limit 1)
                 returning *""",
-            (worker_id,),
+            (worker_id, org_id, org_id),
         ).fetchone()
+
+
+def pending_count(conn: Conn, org_id: str) -> int:
+    row = conn.execute("select count(*) n from jobs where org_id = %s and status in ('queued', 'running') and run_after <= now()",
+                       (org_id,)).fetchone()
+    return int(row["n"]) if row else 0
 
 
 def complete(conn: Conn, job_id: int, result: dict) -> None:
@@ -84,15 +93,22 @@ def run_job(conn: Conn, job: dict) -> dict[str, Any]:
         return fn(conn, job["payload"])
 
 
-def run_pending(conn: Conn, worker_id: str | None = None, max_jobs: int | None = None) -> dict[str, int]:
-    """Process due jobs until the queue is empty (or `max_jobs`). Returns counts by outcome."""
+def run_pending(conn: Conn, worker_id: str | None = None, max_jobs: int | None = None, org_id: str | None = None,
+                wait_s: float = 60.0) -> dict[str, int]:
+    """Process due jobs until the queue is empty (or `max_jobs`). With `org_id`, only that organisation's jobs, and
+    wait (up to `wait_s`) for any of them another process is still running, so the caller sees finished results.
+    Returns counts by outcome."""
     from . import service  # noqa: F401  (registers handlers)
 
     worker_id = worker_id or f"{socket.gethostname()}:drain"
+    deadline = time.monotonic() + wait_s
     counts = {"done": 0, "retry": 0, "failed": 0}
     while max_jobs is None or sum(counts.values()) < max_jobs:
-        job = claim(conn, worker_id)
+        job = claim(conn, worker_id, org_id)
         if job is None:
+            if org_id is not None and pending_count(conn, org_id) and time.monotonic() < deadline:
+                time.sleep(0.2)   # another worker holds one of this organisation's jobs
+                continue
             break
         try:
             result = run_job(conn, job)
