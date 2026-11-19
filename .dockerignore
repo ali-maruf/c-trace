@@ -9,3 +9,6 @@
 .env
 data/training_fleet.csv
 docs/screenshots
+.pgdata
+.secrets
+data/storage

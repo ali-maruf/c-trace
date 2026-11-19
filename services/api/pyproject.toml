@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "C-Trace REST API (FastAPI) wrapping the ctrace core."
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "ctrace",
+    "ctrace[db]",
+    "pyjwt[crypto]>=2.10,<3",
+    "psycopg-pool>=3.2,<4",
     "fastapi>=0.165,<1",
     "uvicorn[standard]>=0.54,<1",
     "python-multipart>=0.0.34",

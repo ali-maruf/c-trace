@@ -6,6 +6,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "ctrace",
     "ctrace-api",
+    "ctrace-worker",
     # apps/demo-streamlit (hackathon offline fallback)
     "streamlit>=1.67,<2",
     "plotly>=7.1,<8",
@@ -17,21 +18,23 @@ dev = [
     "httpx>=0.28",
     "ruff>=0.14",
     "mypy>=1.18",
+    "pgserver>=0.1.4",   # embedded Postgres 16 + pgvector for local dev and tests (no Docker needed)
 ]
 
 [tool.uv]
 package = false
 
 [tool.uv.workspace]
-members = ["packages/ctrace", "services/api"]
+members = ["packages/ctrace", "services/api", "services/worker"]
 
 [tool.uv.sources]
 ctrace = { workspace = true }
 ctrace-api = { workspace = true }
+ctrace-worker = { workspace = true }
 
 # ---------------------------------------------------------------- tooling
 [tool.pytest.ini_options]
-testpaths = ["packages/ctrace/tests", "services/api/tests", "apps/demo-streamlit/tests"]
+testpaths = ["packages/ctrace/tests", "services/api/tests", "services/worker/tests", "apps/demo-streamlit/tests"]
 addopts = "-q --import-mode=importlib"
 
 [tool.ruff]
@@ -45,11 +48,11 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM"]
 ignore = ["E501"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["ctrace", "ctrace_api"]
+known-first-party = ["ctrace", "ctrace_api", "ctrace_worker"]
 
 [tool.mypy]
 python_version = "3.12"
-files = ["packages/ctrace/ctrace", "services/api/ctrace_api"]
+files = ["packages/ctrace/ctrace", "services/api/ctrace_api", "services/worker/ctrace_worker"]
 ignore_missing_imports = true
 warn_unused_ignores = true
 no_implicit_optional = true

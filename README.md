@@ -12,13 +12,16 @@ reductions with statistics, so factories can earn from cutting emissions.
 ```bash
 make setup          # installs uv if missing, then Python 3.12 + pinned deps from uv.lock
 make train          # trains the C-Trace Verifier (~10 s) and writes models/MODEL_CARD.md
-make demo-streamlit # open http://localhost:8501 and click "Load demo factory"
-make test           # core, API and Streamlit smoke tests
-make api            # REST API, docs at http://localhost:8000/docs
-make sample-data    # (re)creates the fictional demo factory's 65 sample bills
+make test           # core, database/API and Streamlit tests (starts a local Postgres, no Docker needed)
+make demo           # seeds the fictional demo factory into Postgres: 65 bills through upload → job → ledger
+make api            # REST API, docs at http://localhost:8000/docs  (token: make dev-token)
+make worker         # background worker for new uploads
+make demo-streamlit # offline fallback UI: open http://localhost:8501 and click "Load demo factory"
 ```
-Run `make help` for every target. The repository is a uv workspace: `packages/ctrace` (core),
-`services/api` (FastAPI) and `apps/demo-streamlit` (demo UI).
+Run `make help` for every target. The repository is a uv workspace: `packages/ctrace` (core and the
+`ctrace.store` Postgres layer), `services/api` (FastAPI), `services/worker` (job runner) and
+`apps/demo-streamlit` (demo UI). Without `DATABASE_URL`, development uses an embedded Postgres 16 + pgvector
+(pgserver) in `.pgdata/`. With Docker: `make compose-up`. API reference: [docs/API.md](docs/API.md).
 
 Optional: copy `.env.example` to `.env` and set `ANTHROPIC_API_KEY` to turn on Claude vision extraction (photos,
 scanned and Bangla bills) and LLM-written report narratives. Every LLM narrative must pass the C-Trace **number guard**:
@@ -59,7 +62,10 @@ production + profile ───────────────────�
 | `packages/ctrace/ctrace/report.py` | Report facts, narrative (template or LLM + number guard), branded PDF |
 | `ml/train.py` | Trains, evaluates on held-out factories with injected errors, writes `MODEL_CARD.md` |
 | `apps/demo-streamlit/streamlit_app.py` | Demo UI |
-| `services/api/ctrace_api/main.py` | FastAPI: `/v1/extract`, `/v1/analyze`, `/v1/report`, `/v1/factors` |
+| `packages/ctrace/ctrace/store/` | Postgres: migrations, row-level security per organisation, job queue, ingest → ledger, review + audit log, demo seed |
+| `infra/supabase/migrations/` | SQL schema (organisations, factories, documents, extractions, activity records, factors, ledger, …) |
+| `services/api/ctrace_api/` | FastAPI `/v1`: factories, production, documents, jobs, review, ledger, summary, factors (see docs/API.md) |
+| `services/worker/` | Runs extraction jobs from the Postgres `jobs` table |
 
 ## Data and honesty notes
 - **Public data used:** Our World in Data energy and CO2 datasets (Bangladesh grid carbon intensity from Ember, national

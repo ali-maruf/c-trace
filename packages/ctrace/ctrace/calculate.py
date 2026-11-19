@@ -12,7 +12,7 @@ from .factors import ENERGY_GJ_PER_UNIT, factor_for
 
 LEDGER_COLUMNS = [
     "trace_id", "period", "activity", "scope", "quantity", "unit", "amount_bdt",
-    "energy_gj", "ef_kgco2e_per_unit", "kgco2e", "tco2e", "ef_source", "calculation",
+    "energy_gj", "ef_kgco2e_per_unit", "kgco2e", "tco2e", "factor_id", "ef_source", "calculation",
     "doc_name", "doc_sha256", "bill_no", "supplier",
 ]
 
@@ -40,6 +40,7 @@ def build_ledger(records: pd.DataFrame) -> pd.DataFrame:
             "ef_kgco2e_per_unit": ef.kgco2e_per_unit,
             "kgco2e": round(kg, 2),
             "tco2e": round(kg / 1000.0, 4),
+            "factor_id": ef.factor_id,
             "ef_source": ef.source,
             "calculation": f"{q:,.2f} {ef.unit} × {ef.kgco2e_per_unit} kgCO2e/{ef.unit} = {kg:,.1f} kgCO2e",
             "doc_name": r.get("doc_name"),

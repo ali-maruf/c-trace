@@ -4,7 +4,10 @@
     # via
     #   c-trace
     #   ctrace-api
+    #   ctrace-worker
 -e ./services/api
+    # via c-trace
+-e ./services/worker
     # via c-trace
 altair==6.3.0
     # via streamlit
@@ -42,7 +45,9 @@ click==8.5.1
 cloudpickle==3.1.3
     # via joblib
 cryptography==50.0.2
-    # via pdfminer-six
+    # via
+    #   pdfminer-six
+    #   pyjwt
 docstring-parser==0.18.0
     # via anthropic
 fastapi==0.165.0
@@ -121,6 +126,12 @@ plotly==7.1.0
     # via c-trace
 protobuf==7.36.2
     # via streamlit
+psycopg==3.3.9
+    # via ctrace
+psycopg-binary==3.3.9 ; implementation_name != 'pypy'
+    # via psycopg
+psycopg-pool==3.3.3
+    # via ctrace-api
 pyarrow==26.0.1
     # via streamlit
 pycparser==3.12 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
@@ -133,6 +144,8 @@ pydantic-core==2.50.5
     # via pydantic
 pydeck==0.9.3
     # via streamlit
+pyjwt==2.15.1
+    # via ctrace-api
 pypdfium2==5.15.2
     # via pdfplumber
 python-dateutil==4.0.0
@@ -185,6 +198,8 @@ typing-extensions==4.16.0
     #   fastapi
     #   httpx2
     #   opentelemetry-api
+    #   psycopg
+    #   psycopg-pool
     #   pydantic
     #   pydantic-core
     #   referencing
@@ -198,6 +213,7 @@ typing-inspection==0.4.5
 tzdata==2026.6
     # via
     #   pandas
+    #   psycopg
     #   python-dateutil
 urllib3==2.8.0
     # via requests

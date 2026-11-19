@@ -15,6 +15,12 @@ dependencies = [
     "anthropic>=2.10,<3",
 ]
 
+[project.optional-dependencies]
+# ctrace.store: Postgres persistence, job queue, seed (used by the API and worker)
+db = [
+    "psycopg[binary]>=3.3,<4",
+]
+
 [build-system]
 requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"

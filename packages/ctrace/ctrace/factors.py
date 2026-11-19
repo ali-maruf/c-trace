@@ -18,15 +18,25 @@ from .config import PUBLIC_DIR
 GWP_AR6 = {"CO2": 1.0, "CH4": 29.8, "N2O": 273.0}
 
 
+FACTOR_VERSION = "v1"
+IPCC_2006_VOL2_URL = "https://www.ipcc-nggip.iges.or.jp/public/2006gl/vol2.html"
+OWID_ENERGY_URL = "https://github.com/owid/energy-data"
+
+
 @dataclass(frozen=True)
 class EmissionFactor:
+    factor_id: str        # stable key, e.g. "ipcc2006-natural_gas-v1", "ember-bgd-2024-v1"
     activity: str
     unit: str
     scope: int
     kgco2e_per_unit: float
     breakdown: dict
     source: str
+    source_url: str
     notes: str
+    version: str = FACTOR_VERSION
+    region: str = "BGD"
+    year: int | None = None   # data year for year-specific factors (grid); None = not year-specific
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -48,12 +58,14 @@ _DSL_TOTAL, _DSL_BREAK = _fuel_factor(0.03612, 74_100, 3.0, 0.6)
 
 FUEL_FACTORS = {
     "natural_gas": EmissionFactor(
+        factor_id=f"ipcc2006-natural_gas-{FACTOR_VERSION}", region="GLOBAL", source_url=IPCC_2006_VOL2_URL,
         activity="natural_gas", unit="m3", scope=1,
         kgco2e_per_unit=round(_NG_TOTAL, 5), breakdown=_NG_BREAK,
         source="IPCC 2006 GL Vol.2 Ch.2 defaults (CO2 56,100; CH4 1; N2O 0.1 kg/TJ); AR6 GWP100",
         notes="Assumes NCV 0.036 GJ/m3. Covers boilers, thermic heaters and captive gas generators.",
     ),
     "diesel": EmissionFactor(
+        factor_id=f"ipcc2006-diesel-{FACTOR_VERSION}", region="GLOBAL", source_url=IPCC_2006_VOL2_URL,
         activity="diesel", unit="litre", scope=1,
         kgco2e_per_unit=round(_DSL_TOTAL, 5), breakdown=_DSL_BREAK,
         source="IPCC 2006 GL Vol.2 Ch.2 defaults (CO2 74,100; CH4 3; N2O 0.6 kg/TJ); AR6 GWP100",
@@ -77,12 +89,18 @@ def grid_factor(year: int) -> EmissionFactor:
     row = eligible.iloc[-1] if len(eligible) else t.iloc[0]
     g_per_kwh = float(row.carbon_intensity_elec)
     return EmissionFactor(
+        factor_id=f"ember-bgd-{int(row.year)}-{FACTOR_VERSION}", year=int(row.year), source_url=OWID_ENERGY_URL,
         activity="grid_electricity", unit="kWh", scope=2,
         kgco2e_per_unit=round(g_per_kwh / 1000.0, 5),
         breakdown={"CO2e": round(g_per_kwh / 1000.0, 5)},
         source=f"Ember via Our World in Data, Bangladesh {int(row.year)} ({g_per_kwh:.1f} gCO2e/kWh)",
         notes="Lifecycle generation intensity; swap for official national grid EF for statutory use.",
     )
+
+
+def all_factors() -> list[EmissionFactor]:
+    """Every factor C-Trace can use: the fuel factors plus one grid factor per available data year."""
+    return list(FUEL_FACTORS.values()) + [grid_factor(int(y)) for y in _grid_table().year]
 
 
 def factor_for(activity: str, year: int) -> EmissionFactor:
