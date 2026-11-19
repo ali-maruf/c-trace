@@ -37,7 +37,7 @@ Recall by error type:
 - **Diesel** — under_reporting (×0.4–0.7): 18%, unit_error (×1000 or ÷1000): 100%, double_count (×2): 26%, over_reporting (×1.4–1.8): 8%
 
 ## Limitations — read before quoting these numbers
-- **Training data is simulated.** Bangladesh has no open factory-level monthly energy dataset. The C-Trace simulator (`ctrace/simulator.py`) encodes transparent engineering assumptions (kWh/piece, steam per piece, captive gas generation, outages, solar yield, Eid shutdowns). Metrics show the method works on data with this structure; they are **not** proof of real-world accuracy. Retrain with pilot data: `python ml/train.py --data pilot.csv`.
+- **Training data is simulated.** Bangladesh has no open factory-level monthly energy dataset. The C-Trace simulator (`packages/ctrace/ctrace/simulator.py`) encodes transparent engineering assumptions (kWh/piece, steam per piece, captive gas generation, outages, solar yield, Eid shutdowns). Metrics show the method works on data with this structure; they are **not** proof of real-world accuracy. Retrain with pilot data: `uv run python ml/train.py --data pilot.csv`.
 - Small under-reporting (<30%) is hard to separate from genuine efficiency gains; C-Trace grades such months Medium and asks for evidence rather than accusing.
 - Diesel use depends on grid outages, which are noisy, so diesel flags are weaker.
 

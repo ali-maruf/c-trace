@@ -1,22 +1,20 @@
-"""C-Trace REST API.   Run:  uvicorn api.main:app --reload   → docs at http://localhost:8000/docs"""
+"""C-Trace REST API.   Run:  make api  (uvicorn ctrace_api.main:app --reload)   → docs at http://localhost:8000/docs"""
 from __future__ import annotations
 
-import sys
-from pathlib import Path
+from typing import Annotated
 
 import pandas as pd
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from ctrace import BRAND, TAGLINE, __version__, config  # noqa: E402
-from ctrace.extraction import extract_document  # noqa: E402
-from ctrace.factors import factor_for  # noqa: E402
-from ctrace.pipeline import run  # noqa: E402
-from ctrace.reduction import prove_reduction  # noqa: E402
-from ctrace.report import FORMATS, build_facts, generate, to_pdf  # noqa: E402
-from ctrace.verify import Verifier  # noqa: E402
+from ctrace import BRAND, TAGLINE, __version__, config
+from ctrace.extraction import extract_document
+from ctrace.factors import factor_for
+from ctrace.pipeline import run
+from ctrace.reduction import prove_reduction
+from ctrace.report import FORMATS, build_facts, generate, to_pdf
+from ctrace.verify import Verifier
 
 app = FastAPI(title=f"{BRAND} API", version=__version__, description=f"{TAGLINE} Carbon MRV for factories.")
 _verifier = None
@@ -27,7 +25,7 @@ def verifier() -> Verifier:
     if _verifier is None:
         p = config.MODELS_DIR / "ctrace_verifier.joblib"
         if not p.exists():
-            raise HTTPException(503, "C-Trace Verifier not trained. Run: python ml/train.py")
+            raise HTTPException(503, "C-Trace Verifier not trained. Run: make train")
         _verifier = Verifier.load(p)
     return _verifier
 
@@ -92,9 +90,9 @@ def factors(year: int = 2026):
 
 
 @app.post("/v1/extract")
-async def extract(file: UploadFile = File(...)):
+async def extract(file: Annotated[UploadFile, File()]):
     data = await file.read()
-    return extract_document(data, file.filename, file.content_type or "application/pdf").as_dict()
+    return extract_document(data, file.filename or "upload", file.content_type or "application/pdf").as_dict()
 
 
 @app.post("/v1/analyze")

@@ -35,7 +35,7 @@ def document_issues(records: pd.DataFrame, all_periods: list[str]) -> dict[str, 
                            & ~records.duplicated("doc_sha256", keep="first")]
         for _, r in dup_bill.iterrows():
             issues[r["period"]].append(f"Duplicate bill number {r['bill_no']} in {r['doc_name']} (possible double count)")
-    present = set(zip(records.period, records.activity))
+    present = set(zip(records.period, records.activity, strict=True))
     expected_activities = set(records.activity.dropna())
     for p in all_periods:
         for a in expected_activities:

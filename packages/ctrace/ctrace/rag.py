@@ -28,8 +28,8 @@ def load_chunks() -> list[Chunk]:
     for block in re.split(r"\n## ", raw)[1:]:
         lines = block.strip().splitlines()
         title = lines[0].strip()
-        src = next((l.split(":", 1)[1].strip() for l in lines if l.startswith("Source:")), "C-Trace")
-        body = " ".join(l for l in lines[1:] if not l.startswith("Source:")).strip()
+        src = next((ln.split(":", 1)[1].strip() for ln in lines if ln.startswith("Source:")), "C-Trace")
+        body = " ".join(ln for ln in lines[1:] if not ln.startswith("Source:")).strip()
         chunks.append(Chunk(title, src, body))
     return chunks
 

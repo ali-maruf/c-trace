@@ -11,7 +11,6 @@ Built-in story for the demo:
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -20,9 +19,8 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A5
 from reportlab.pdfgen import canvas
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from ctrace import config  # noqa: E402
-from ctrace.simulator import periods, simulate_month  # noqa: E402
+from ctrace import config
+from ctrace.simulator import periods, simulate_month
 
 PROFILE = {
     "factory_id": "DEMO-001",

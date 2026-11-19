@@ -12,8 +12,9 @@ import base64
 import hashlib
 import json
 import re
-from dataclasses import dataclass, asdict, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Any
 
 import pdfplumber
 
@@ -97,7 +98,7 @@ def infer_activity(text: str) -> str | None:
         "grid_electricity": sum(k in t for k in ("electric", "kwh", "power", "meter reading", "বিদ্যুৎ")),
         "diesel": sum(k in t for k in ("diesel", "litre", "liter", "fuel", "ডিজেল", "generator")),
     }
-    best = max(scores, key=scores.get)
+    best = max(scores, key=lambda k: scores[k])
     return best if scores[best] > 0 else None
 
 
@@ -166,6 +167,7 @@ def extract_with_llm(data: bytes, doc_name: str, media_type: str) -> BillRecord:
 
     client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
     b64 = base64.standard_b64encode(data).decode()
+    block: dict[str, Any]
     if media_type == "application/pdf":
         block = {"type": "document", "source": {"type": "base64", "media_type": media_type, "data": b64}}
     else:
@@ -174,7 +176,7 @@ def extract_with_llm(data: bytes, doc_name: str, media_type: str) -> BillRecord:
         model=config.CTRACE_EXTRACTION_MODEL,
         max_tokens=800,
         system=LLM_SYSTEM,
-        messages=[{"role": "user", "content": [block, {"type": "text", "text": "Extract the C-Trace JSON."}]}],
+        messages=[{"role": "user", "content": [block, {"type": "text", "text": "Extract the C-Trace JSON."}]}],  # type: ignore[misc, list-item]
     )
     raw = "".join(getattr(b, "text", "") for b in msg.content)
     m = re.search(r"\{.*\}", raw, flags=re.DOTALL)

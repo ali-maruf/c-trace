@@ -1,22 +1,17 @@
 """C-Trace test suite:  pytest -q"""
 import json
-import sys
-from pathlib import Path
 
 import pandas as pd
 import pytest
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-
-from ctrace import config  # noqa: E402
-from ctrace.calculate import build_ledger  # noqa: E402
-from ctrace.extraction import extract_pdf_rules, normalize_period, parse_text  # noqa: E402
-from ctrace.factors import FUEL_FACTORS, grid_factor  # noqa: E402
-from ctrace.pipeline import run  # noqa: E402
-from ctrace.reduction import prove_reduction  # noqa: E402
-from ctrace.report import build_facts, number_guard, template_narrative  # noqa: E402
-from ctrace.verify import Verifier  # noqa: E402
+from ctrace import config
+from ctrace.calculate import build_ledger
+from ctrace.extraction import extract_pdf_rules, normalize_period, parse_text
+from ctrace.factors import FUEL_FACTORS, grid_factor
+from ctrace.pipeline import run
+from ctrace.reduction import prove_reduction
+from ctrace.report import build_facts, number_guard, template_narrative
+from ctrace.verify import Verifier
 
 BILLS = sorted(config.BILLS_DIR.glob("*.pdf"))
 

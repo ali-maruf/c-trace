@@ -4,7 +4,23 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+
+def find_root() -> Path:
+    """Locate the C-Trace workspace (the folder holding `data/` and `models/`).
+
+    Order: the CTRACE_ROOT environment variable; then the nearest parent of this package that
+    contains `data/samples` (editable/monorepo install); then the current working directory.
+    """
+    env = os.getenv("CTRACE_ROOT")
+    if env:
+        return Path(env).expanduser().resolve()
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "data" / "samples").is_dir():
+            return parent
+    return Path.cwd()
+
+
+ROOT = find_root()
 DATA_DIR = ROOT / "data"
 PUBLIC_DIR = DATA_DIR / "public"
 SAMPLES_DIR = DATA_DIR / "samples"

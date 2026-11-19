@@ -1,23 +1,18 @@
-"""C-Trace demo app.  Run:  streamlit run app/streamlit_app.py"""
+"""C-Trace demo app (offline hackathon fallback).  Run:  make demo-streamlit"""
 from __future__ import annotations
 
 import json
-import sys
-from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-
-from ctrace import BRAND, TAGLINE, config  # noqa: E402
-from ctrace.extraction import extract_document  # noqa: E402
-from ctrace.pipeline import run  # noqa: E402
-from ctrace.reduction import prove_reduction  # noqa: E402
-from ctrace.report import FORMATS, build_facts, generate, to_pdf  # noqa: E402
-from ctrace.verify import Verifier  # noqa: E402
+from ctrace import BRAND, TAGLINE, config
+from ctrace.extraction import extract_document
+from ctrace.pipeline import run
+from ctrace.reduction import prove_reduction
+from ctrace.report import FORMATS, build_facts, generate, to_pdf
+from ctrace.verify import Verifier
 
 TEAL, AMBER, RED, SLATE = "#0F766E", "#D97706", "#DC2626", "#475569"
 SOURCE_COLORS = {"natural_gas": "#0F766E", "grid_electricity": "#38BDF8", "diesel": "#F59E0B"}
@@ -83,7 +78,7 @@ with c2:
     st.write("")
     mode = f"LLM extraction ON · {config.CTRACE_EXTRACTION_MODEL}" if config.llm_enabled() else "Offline mode · rules parser (set ANTHROPIC_API_KEY for vision + Bangla)"
     st.caption(f"⚙️ {mode}")
-    st.caption("🧠 C-Trace Verifier v1 loaded" if verifier else "⚠️ Model not trained — run `python ml/train.py`")
+    st.caption("🧠 C-Trace Verifier v1 loaded" if verifier else "⚠️ Model not trained — run `make train`")
 
 with st.sidebar:
     st.markdown(f"### {BRAND}")
@@ -149,7 +144,7 @@ with tabs[0]:
             if s["doc_name"] in ss.accepted:
                 i = records.index[records.doc_name == s["doc_name"]]
                 records.loc[i, "quantity"] = s["suggested_quantity"]
-                records.loc[i, "issues"] = records.loc[i, "issues"].map(lambda l: [x for x in l if "tariff" not in x.lower()] + ["Quantity corrected by reviewer (amount ÷ factory median rate); keep the corrected bill on file"])
+                records.loc[i, "issues"] = records.loc[i, "issues"].map(lambda notes: [x for x in notes if "tariff" not in x.lower()] + ["Quantity corrected by reviewer (amount ÷ factory median rate); keep the corrected bill on file"])
                 records.loc[i, "extraction_method"] = records.loc[i, "extraction_method"] + "+reviewer"
 
 out = run(records, ss.production, ss.profile, verifier)
@@ -188,7 +183,7 @@ with tabs[1]:
 # ------------------------------------------------------------------ ③ verify
 with tabs[2]:
     if verification is None:
-        st.warning("Train the model first: `python ml/train.py`")
+        st.warning("Train the model first: `make train`")
     else:
         counts = verification.confidence.value_counts()
         a, b, c = st.columns(3)
@@ -238,7 +233,7 @@ with tabs[3]:
         ss.reductions = results
         med_tariff = (records.amount_bdt / records.quantity).groupby(records.activity).median()
         cols = st.columns(len(results))
-        for col, r in zip(cols, results):
+        for col, r in zip(cols, results, strict=True):
             colname = "gas_m3" if r.activity == "natural_gas" else "grid_kwh"
             unit = "m³" if r.activity == "natural_gas" else "kWh"
             with col:

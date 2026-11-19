@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from .factors import factor_for, ENERGY_GJ_PER_UNIT
+from .factors import ENERGY_GJ_PER_UNIT, factor_for
 
 LEDGER_COLUMNS = [
     "trace_id", "period", "activity", "scope", "quantity", "unit", "amount_bdt",

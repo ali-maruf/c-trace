@@ -3,13 +3,10 @@
   * Our World in Data energy dataset  → Bangladesh grid carbon intensity (Ember)  → Scope 2 factor
   * Our World in Data CO2 dataset     → Bangladesh national emissions context
 """
-import sys
-from pathlib import Path
 
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from ctrace.config import PUBLIC_DIR  # noqa: E402
+from ctrace.config import PUBLIC_DIR
 
 OWID_ENERGY = "https://raw.githubusercontent.com/owid/energy-data/master/owid-energy-data.csv"
 OWID_CO2 = "https://raw.githubusercontent.com/owid/co2-data/master/owid-co2-data.csv"

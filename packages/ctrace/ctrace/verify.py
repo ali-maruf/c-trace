@@ -12,6 +12,7 @@ Signals combined into one confidence grade per month:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import joblib
 import numpy as np
@@ -46,12 +47,12 @@ def make_features(df: pd.DataFrame) -> pd.DataFrame:
 class Verifier:
     models: dict          # target -> fitted regressor (predicts log1p(quantity))
     sigma: dict           # target -> robust std of calibrated residuals
-    iso: object           # IsolationForest on residual pattern
+    iso: Any              # sklearn IsolationForest on the residual pattern
     iso_threshold: float
     meta: dict
 
     @classmethod
-    def load(cls, path=None) -> "Verifier":
+    def load(cls, path=None) -> Verifier:
         return joblib.load(path or (config.MODELS_DIR / "ctrace_verifier.joblib"))
 
     def save(self, path=None):

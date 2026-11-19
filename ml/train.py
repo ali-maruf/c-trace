@@ -12,9 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from datetime import date
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -22,10 +20,9 @@ from sklearn.ensemble import HistGradientBoostingRegressor, IsolationForest
 from sklearn.metrics import mean_absolute_percentage_error, precision_recall_fscore_support, roc_auc_score
 from sklearn.model_selection import GroupShuffleSplit
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from ctrace import config  # noqa: E402
-from ctrace.simulator import simulate_fleet  # noqa: E402
-from ctrace.verify import ACTIVITY_TARGETS, FEATURES, Verifier, make_features  # noqa: E402
+from ctrace import config
+from ctrace.simulator import simulate_fleet
+from ctrace.verify import ACTIVITY_TARGETS, FEATURES, Verifier, make_features
 
 TARGETS = list(ACTIVITY_TARGETS.values())
 ANOMALY_TYPES = {
@@ -64,7 +61,7 @@ def inject(df: pd.DataFrame, rate: float, seed: int) -> tuple[pd.DataFrame, pd.D
             df.iloc[i, df.columns.get_loc(tgt)] = ANOMALY_TYPES[k](df.iloc[i][tgt], rng)
             labels.iloc[i, labels.columns.get_loc(tgt)] = 1
             kinds.iloc[i, kinds.columns.get_loc(tgt)] = k
-    return df, labels.join(kinds, rsuffix="_kind")
+    return df, labels.join(kinds.add_suffix("_kind"))
 
 
 def main(argv=None):
@@ -201,9 +198,9 @@ def write_model_card(meta: dict):
     lines += [
         "", "## Limitations — read before quoting these numbers",
         "- **Training data is simulated.** Bangladesh has no open factory-level monthly energy dataset. The C-Trace "
-        "simulator (`ctrace/simulator.py`) encodes transparent engineering assumptions (kWh/piece, steam per piece, "
+        "simulator (`packages/ctrace/ctrace/simulator.py`) encodes transparent engineering assumptions (kWh/piece, steam per piece, "
         "captive gas generation, outages, solar yield, Eid shutdowns). Metrics show the method works on data with this "
-        "structure; they are **not** proof of real-world accuracy. Retrain with pilot data: `python ml/train.py --data pilot.csv`.",
+        "structure; they are **not** proof of real-world accuracy. Retrain with pilot data: `uv run python ml/train.py --data pilot.csv`.",
         "- Small under-reporting (<30%) is hard to separate from genuine efficiency gains; C-Trace grades such months "
         "Medium and asks for evidence rather than accusing.",
         "- Diesel use depends on grid outages, which are noisy, so diesel flags are weaker.",

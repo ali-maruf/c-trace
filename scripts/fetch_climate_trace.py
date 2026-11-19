@@ -9,13 +9,10 @@ Bangladesh country package from climatetrace.org/data and drop the CSVs into dat
 """
 import argparse
 import json
-import sys
 import urllib.parse
 import urllib.request
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from ctrace.config import PUBLIC_DIR  # noqa: E402
+from ctrace.config import PUBLIC_DIR
 
 BASE = "https://api.climatetrace.org/v6"
 

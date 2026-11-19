@@ -10,14 +10,15 @@ reductions with statistics, so factories can earn from cutting emissions.
 ## Quick start (about 2 minutes, no API key needed)
 
 ```bash
-python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-python ml/train.py                 # trains the C-Trace Verifier (~10 s) and writes models/MODEL_CARD.md
-python scripts/make_sample_data.py # (re)creates the fictional demo factory's 65 sample bills
-streamlit run app/streamlit_app.py # open http://localhost:8501 and click "Load demo factory"
-pytest -q                          # 13 tests
-uvicorn api.main:app --reload      # REST API, docs at http://localhost:8000/docs
+make setup          # installs uv if missing, then Python 3.12 + pinned deps from uv.lock
+make train          # trains the C-Trace Verifier (~10 s) and writes models/MODEL_CARD.md
+make demo-streamlit # open http://localhost:8501 and click "Load demo factory"
+make test           # core, API and Streamlit smoke tests
+make api            # REST API, docs at http://localhost:8000/docs
+make sample-data    # (re)creates the fictional demo factory's 65 sample bills
 ```
+Run `make help` for every target. The repository is a uv workspace: `packages/ctrace` (core),
+`services/api` (FastAPI) and `apps/demo-streamlit` (demo UI).
 
 Optional: copy `.env.example` to `.env` and set `ANTHROPIC_API_KEY` to turn on Claude vision extraction (photos,
 scanned and Bangla bills) and LLM-written report narratives. Every LLM narrative must pass the C-Trace **number guard**:
@@ -47,32 +48,32 @@ production + profile ───────────────────�
 
 | Module | What it does |
 |---|---|
-| `ctrace/factors.py` | IPCC 2006 fuel factors + AR6 GWPs; Bangladesh grid intensity from Ember/OWID by year |
-| `ctrace/extraction.py` | Offline PDF parser and Claude vision path → one `BillRecord` schema; unit normalisation; tariff sanity check |
-| `ctrace/calculate.py` | Deterministic ledger: every row keeps trace ID, document SHA-256, factor, source and the arithmetic |
-| `ctrace/simulator.py` | Transparent factory energy simulator used to train and test the verifier |
-| `ctrace/verify.py` | C-Trace Verifier: expected-energy models, per-period self-calibration, Isolation Forest, grading |
-| `ctrace/pipeline.py` | Joins everything; gap and duplicate detection; tariff-based correction suggestions |
-| `ctrace/reduction.py` | Measurement and verification of savings with prediction intervals |
-| `ctrace/rag.py`, `knowledge/kb.md` | Retrieval over C-Trace's own summaries of the GHG Protocol, IFRS S2, BSEC, Bangladesh Bank, IPMVP |
-| `ctrace/report.py` | Report facts, narrative (template or LLM + number guard), branded PDF |
+| `packages/ctrace/ctrace/factors.py` | IPCC 2006 fuel factors + AR6 GWPs; Bangladesh grid intensity from Ember/OWID by year |
+| `packages/ctrace/ctrace/extraction.py` | Offline PDF parser and Claude vision path → one `BillRecord` schema; unit normalisation; tariff sanity check |
+| `packages/ctrace/ctrace/calculate.py` | Deterministic ledger: every row keeps trace ID, document SHA-256, factor, source and the arithmetic |
+| `packages/ctrace/ctrace/simulator.py` | Transparent factory energy simulator used to train and test the verifier |
+| `packages/ctrace/ctrace/verify.py` | C-Trace Verifier: expected-energy models, per-period self-calibration, Isolation Forest, grading |
+| `packages/ctrace/ctrace/pipeline.py` | Joins everything; gap and duplicate detection; tariff-based correction suggestions |
+| `packages/ctrace/ctrace/reduction.py` | Measurement and verification of savings with prediction intervals |
+| `packages/ctrace/ctrace/rag.py`, `ctrace/knowledge/kb.md` | Retrieval over C-Trace's own summaries of the GHG Protocol, IFRS S2, BSEC, Bangladesh Bank, IPMVP |
+| `packages/ctrace/ctrace/report.py` | Report facts, narrative (template or LLM + number guard), branded PDF |
 | `ml/train.py` | Trains, evaluates on held-out factories with injected errors, writes `MODEL_CARD.md` |
-| `app/streamlit_app.py` | Demo UI |
-| `api/main.py` | FastAPI: `/v1/extract`, `/v1/analyze`, `/v1/report`, `/v1/factors` |
+| `apps/demo-streamlit/streamlit_app.py` | Demo UI |
+| `services/api/ctrace_api/main.py` | FastAPI: `/v1/extract`, `/v1/analyze`, `/v1/report`, `/v1/factors` |
 
 ## Data and honesty notes
 - **Public data used:** Our World in Data energy and CO2 datasets (Bangladesh grid carbon intensity from Ember, national
   emissions). Refresh them with `python scripts/fetch_public_data.py`. Climate TRACE Bangladesh facility data can be pulled
   with `python scripts/fetch_climate_trace.py` (needs internet) for facility benchmarking.
 - **Training data is simulated**, because no open factory-level energy dataset exists for Bangladesh. The assumptions are in
-  `ctrace/simulator.py` and the limitations are in `models/MODEL_CARD.md`. Retrain on pilot data with
-  `python ml/train.py --data pilot.csv`.
+  `packages/ctrace/ctrace/simulator.py` and the limitations are in `models/MODEL_CARD.md`. Retrain on pilot data with
+  `uv run python ml/train.py --data pilot.csv`.
 - **The demo factory, its suppliers and its bills are fictional** and watermarked "SAMPLE".
 - The Ember intensity is lifecycle-based. For statutory filings, use the official national grid emission factor and
   supplier-declared gas calorific values.
 
 ## Deploy a live demo link (free)
 Push this folder to GitHub (the trained model in `models/` is about 10 MB and is included), then go to share.streamlit.io →
-New app → pick `app/streamlit_app.py`. If your scikit-learn version differs from the one used for training, run
-`python ml/train.py` again (about 10 seconds). Or use Docker:
+New app → pick `apps/demo-streamlit/streamlit_app.py` (it installs from `requirements.txt`, exported from `uv.lock`). If your
+scikit-learn version differs from the one used for training, run `make train` again (about 10 seconds). Or use Docker:
 `docker build -t c-trace . && docker run -p 8501:8501 c-trace`.

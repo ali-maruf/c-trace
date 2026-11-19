@@ -8,7 +8,7 @@ statutory reporting replace with the official national grid emission factor (loc
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from functools import lru_cache
 
 import pandas as pd
