@@ -410,3 +410,11 @@ failure is reported: `/api/health` says `database: error`, other routes answer 5
 startup under the existing advisory lock, so the Supabase credential lives only in Vercel's environment. Transaction-mode
 poolers are supported with `CTRACE_DB_PREPARE=0` (no server-side prepared statements). Weather and LLM caches skip writing
 on a read-only disk.
+
+### D59. Locked out of Supabase's Data API, and tested as a non-superuser
+Supabase gives its Data API roles (`anon`, `authenticated`) default privileges on every table in `public`. RLS already gave
+them no rows, because every C-Trace policy is `to ctrace_app`, but C-Trace never uses the Data API, so migration
+`20261120000007` revokes those grants and default privileges (a no-op where the roles don't exist). All migrations, factor
+and KB sync, and the demo flow were run on a fresh Postgres cluster as a non-superuser owner with `CREATEROLE` (how
+Supabase's `postgres` role works), with `CTRACE_DB_PREPARE=0`: the owner can `SET ROLE ctrace_app`, no grants remain for
+`anon`/`authenticated`, and the demo flags exactly 2025-09 and 2026-07.
