@@ -57,7 +57,10 @@ def ensure_started(app: FastAPI) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    ensure_started(app)
+    try:
+        ensure_started(app)
+    except Exception:  # keep serving: /health reports it and other routes answer 503 until the database is reachable
+        log.exception("startup failed; will retry on the next request")
     try:
         yield
     finally:

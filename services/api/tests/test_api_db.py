@@ -756,3 +756,17 @@ def test_demo_start_is_rate_limited_per_client(client, monkeypatch):
     monkeypatch.setattr(v1, "_demo_limiter", ratelimit.SlidingWindowPerHour(2))
     codes = [client.post("/v1/demo/start").status_code for _ in range(3)]
     assert codes == [200, 200, 429]
+
+
+def test_api_without_database_reports_instead_of_crashing(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from ctrace_api import main
+    monkeypatch.setenv("CTRACE_ENV", "production")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setattr(main.app.state, "pool", None, raising=False)
+    with TestClient(main.app) as c:
+        h = c.get("/health").json()
+        assert h["database"].startswith("error")
+        r = c.get("/v1/factors")
+        assert r.status_code == 503 and "database" in r.json()["detail"]
