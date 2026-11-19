@@ -84,10 +84,13 @@ class FileCache:
         return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
 
     def put(self, key: str, value: dict) -> None:
-        self.dir.mkdir(parents=True, exist_ok=True)
-        tmp = self._path(key).with_suffix(".part")
-        tmp.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
-        tmp.replace(self._path(key))
+        try:
+            self.dir.mkdir(parents=True, exist_ok=True)
+            tmp = self._path(key).with_suffix(".part")
+            tmp.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+            tmp.replace(self._path(key))
+        except OSError:  # read-only deployment: the cache is an optimisation, never required
+            pass
 
 
 def cache_key(document_sha256: str, model: str, prompt_id: str) -> str:

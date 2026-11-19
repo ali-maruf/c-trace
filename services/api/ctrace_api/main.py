@@ -3,11 +3,12 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import AsyncIterator
+import threading
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
@@ -27,23 +28,43 @@ def _migrate_on_start() -> bool:
     return os.getenv("CTRACE_MIGRATE_ON_START", "1" if environment() == "development" else "0") == "1"
 
 
+_start_lock = threading.Lock()
+
+
+def ensure_started(app: FastAPI) -> None:
+    """Migrate (if enabled) and open the connection pool once per process.
+
+    Called from the ASGI lifespan and, as a fallback, on the first request, so a serverless platform that
+    skips lifespan events still gets a working app.
+    """
+    if getattr(app.state, "pool", None) is not None:
+        return
+    with _start_lock:
+        if getattr(app.state, "pool", None) is not None:
+            return
+        setup_logging()
+        url = database_url()
+        if _migrate_on_start():
+            with connect(url) as conn:
+                migrate(conn)
+                sync_factors(conn)
+                sync_kb(conn)
+        pool = ConnectionPool(url, min_size=int(os.getenv("CTRACE_DB_POOL_MIN", "1")), max_size=int(os.getenv("CTRACE_DB_POOL_MAX", "10")),
+                              open=True, kwargs={"autocommit": True, "row_factory": dict_row}, configure=configure)
+        app.state.pool = pool
+        log.info("startup", extra={"fields": {"env": environment(), "llm": config.llm_enabled()}})
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    setup_logging()
-    url = database_url()
-    if _migrate_on_start():
-        with connect(url) as conn:
-            migrate(conn)
-            sync_factors(conn)
-            sync_kb(conn)
-    pool = ConnectionPool(url, min_size=1, max_size=int(os.getenv("CTRACE_DB_POOL_MAX", "10")), open=True,
-                          kwargs={"autocommit": True, "row_factory": dict_row}, configure=configure)
-    app.state.pool = pool
-    log.info("startup", extra={"fields": {"env": environment(), "llm": config.llm_enabled()}})
+    ensure_started(app)
     try:
         yield
     finally:
-        pool.close()
+        pool = getattr(app.state, "pool", None)
+        if pool is not None:
+            pool.close()
+            app.state.pool = None
 
 
 app = FastAPI(
@@ -63,6 +84,21 @@ app = FastAPI(
     ],
 )
 app.add_middleware(RequestContextMiddleware)
+
+
+@app.middleware("http")
+async def _started(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+    if getattr(request.app.state, "pool", None) is None:
+        from starlette.concurrency import run_in_threadpool
+        try:
+            await run_in_threadpool(ensure_started, request.app)
+        except Exception as exc:
+            log.exception("startup failed")
+            if not request.url.path.endswith("/health"):
+                return JSONResponse({"detail": f"C-Trace could not reach its database ({type(exc).__name__})."}, status_code=503)
+    return await call_next(request)
+
+
 API_PREFIX = os.getenv("CTRACE_API_PREFIX", "").rstrip("/")  # e.g. "/api" behind a path-based rewrite
 app.include_router(v1.router, prefix=API_PREFIX)
 app.include_router(stateless.router, prefix=API_PREFIX)
@@ -87,7 +123,10 @@ async def invalid(_: Request, exc: ValueError) -> JSONResponse:
 def health(request: Request) -> dict:
     db = "ok"
     try:
-        with request.app.state.pool.connection() as conn:
+        pool = getattr(request.app.state, "pool", None)
+        if pool is None:
+            raise RuntimeError("not started")
+        with pool.connection() as conn:
             conn.execute("select 1")
     except Exception as exc:  # report, don't crash the health check
         db = f"error: {type(exc).__name__}"

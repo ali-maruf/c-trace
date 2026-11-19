@@ -33,8 +33,14 @@ def environment() -> str:
 
 
 def configure(conn: psycopg.Connection[Any]) -> None:
-    """Return NUMERIC as float: ledger arithmetic happens in Python, values are stored as computed."""
+    """Return NUMERIC as float: ledger arithmetic happens in Python, values are stored as computed.
+
+    Behind a transaction-mode pooler (Supabase port 6543, PgBouncer) server-side prepared statements break,
+    so `CTRACE_DB_PREPARE=0` turns them off.
+    """
     conn.adapters.register_loader("numeric", FloatLoader)
+    if os.getenv("CTRACE_DB_PREPARE", "1") == "0":
+        conn.prepare_threshold = None
 
 
 def database_url() -> str:

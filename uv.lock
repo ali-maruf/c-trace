@@ -143,6 +143,10 @@ dependencies = [
     { name = "ctrace-api" },
     { name = "ctrace-worker" },
     { name = "pandera" },
+]
+
+[package.optional-dependencies]
+demo = [
     { name = "plotly" },
     { name = "streamlit" },
 ]
@@ -163,9 +167,10 @@ requires-dist = [
     { name = "ctrace-api", editable = "services/api" },
     { name = "ctrace-worker", editable = "services/worker" },
     { name = "pandera", specifier = "==0.36.0" },
-    { name = "plotly", specifier = ">=7.1,<8" },
-    { name = "streamlit", specifier = ">=1.67,<2" },
+    { name = "plotly", marker = "extra == 'demo'", specifier = ">=7.1,<8" },
+    { name = "streamlit", marker = "extra == 'demo'", specifier = ">=1.67,<2" },
 ]
+provides-extras = ["demo"]
 
 [package.metadata.requires-dev]
 dev = [

@@ -7,10 +7,14 @@ dependencies = [
     "ctrace",
     "ctrace-api",
     "ctrace-worker",
-    # apps/demo-streamlit (hackathon offline fallback)
+    "pandera==0.36.0",
+]
+
+[project.optional-dependencies]
+# apps/demo-streamlit (hackathon offline fallback). An extra, so the hosted API bundle stays under Vercel's 500 MB.
+demo = [
     "streamlit>=1.67,<2",
     "plotly>=7.1,<8",
-    "pandera==0.36.0",
 ]
 
 [dependency-groups]

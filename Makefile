@@ -13,7 +13,7 @@ help: ## Show this help
 
 setup: ## Install Python 3.12 and all pinned dependencies (uv.lock)
 	@command -v uv >/dev/null 2>&1 || [ -x "$(HOME)/.local/bin/uv" ] || python3 -m pip install --user uv
-	$(UV) sync --all-packages --frozen
+	$(UV) sync --all-packages --all-extras --frozen
 
 $(MODEL):
 	$(RUN) python ml/train.py
@@ -75,7 +75,7 @@ fetch-data: ## Refresh OWID, NASA POWER (demo location) and Climate TRACE data w
 	$(RUN) python scripts/fetch_climate_trace.py
 
 requirements: ## Re-export requirements.txt from uv.lock (for Streamlit Community Cloud)
-	$(UV) export --frozen --no-hashes --no-dev --all-packages --format requirements-txt -o requirements.txt
+	$(UV) export --frozen --no-hashes --no-dev --all-packages --all-extras --format requirements-txt -o requirements.txt
 
 docker-build: ## Build the C-Trace image
 	docker build -t c-trace .

@@ -49,8 +49,11 @@ def refresh(lat: float, lon: float, start_year: int, end_year: int) -> pd.DataFr
     df, _ = fetch_power_monthly(clat, clon, start_year, end_year)
     old = load_cached(lat, lon)
     merged = pd.concat([old, df]).drop_duplicates("period", keep="last").sort_values("period").reset_index(drop=True)
-    WEATHER_DIR.mkdir(parents=True, exist_ok=True)
-    merged.to_csv(cache_path(lat, lon), index=False)
+    try:
+        WEATHER_DIR.mkdir(parents=True, exist_ok=True)
+        merged.to_csv(cache_path(lat, lon), index=False)
+    except OSError:  # read-only deployment (e.g. serverless): use the fetched values without caching them
+        return merged
     record_provenance(f"nasa_power_{clat:+.1f}_{clon:+.1f}", source=SOURCE_POWER,
                       url="https://power.larc.nasa.gov/api/temporal/monthly/point",
                       licence="NASA POWER data are free and open; cite NASA Langley Research Center POWER Project",

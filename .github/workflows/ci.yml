@@ -30,7 +30,7 @@ jobs:
           version: "0.13.9"
           enable-cache: true
       - name: Install (frozen lockfile)
-        run: uv sync --all-packages --frozen
+        run: uv sync --all-packages --all-extras --frozen
       - name: Ruff
         run: uv run ruff check .
       - name: mypy
@@ -44,7 +44,7 @@ jobs:
         run: uv run pytest
       - name: requirements.txt matches uv.lock
         run: |
-          uv export --frozen --no-hashes --no-dev --all-packages --format requirements-txt -o /tmp/req.txt
+          uv export --frozen --no-hashes --no-dev --all-packages --all-extras --format requirements-txt -o /tmp/req.txt
           diff -u requirements.txt /tmp/req.txt
 
   docker:

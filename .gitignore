@@ -13,3 +13,7 @@ data/storage/
 data/cache/
 .claude/launch.json
 .playwright/
+.vercel
+.env.local
+.env*.local
+_uv/
