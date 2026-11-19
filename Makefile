@@ -6,7 +6,7 @@ RUN := $(UV) run
 MODEL := models/ctrace_verifier.joblib
 
 .DEFAULT_GOAL := help
-.PHONY: help setup train sample-data test lint typecheck check demo demo-reset demo-streamlit api worker db-start db-stop db-migrate dev-token fetch-data requirements docker-build compose-up clean
+.PHONY: eval-extraction eval-bills help setup train sample-data test lint typecheck check demo demo-reset demo-streamlit api worker db-start db-stop db-migrate dev-token fetch-data requirements docker-build compose-up clean
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -62,6 +62,12 @@ db-migrate: ## Apply SQL migrations and sync emission factors (uses DATABASE_URL
 
 dev-token: ## Print a development access token for the fictional demo user
 	@$(RUN) python -m ctrace_api.devtoken
+
+eval-extraction: $(MODEL) ## Score extraction on data/eval/bills (rules; LLM methods too if ANTHROPIC_API_KEY is set) and refresh the model card
+	$(RUN) python ml/eval_extraction.py
+
+eval-bills: ## Regenerate the fictional extraction eval set (macOS: Bangla rendering uses CoreText via swift)
+	$(RUN) python scripts/make_eval_bills.py
 
 fetch-data: ## Refresh public datasets (needs internet)
 	$(RUN) python scripts/fetch_public_data.py

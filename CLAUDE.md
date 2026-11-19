@@ -15,6 +15,8 @@ Product: **C-Trace — Trace every tonne.** Verifiable carbon MRV for Bangladesh
 - Model IDs live in config / env vars, never in business logic.
 - Store functions run inside `org_tx` (role `ctrace_app`, RLS on). Never compute emissions in SQL; never bypass RLS for user requests.
 - Every review action (confirm/correct/reject) and factor change writes `audit_log`.
+- LLM prompts are versioned files in `packages/ctrace/ctrace/prompts/<name>/vN.md` (+ `vN.schema.json`); a prompt change is a new version.
+- LLM calls use structured outputs, never forced `tool_choice` (Sonnet 5.5 rejects it); models return printed text, code parses it.
 
 ## Layout
 - `packages/ctrace/` — Python core (`import ctrace`), tests in `packages/ctrace/tests/`
@@ -32,4 +34,5 @@ Product: **C-Trace — Trace every tonne.** Verifiable carbon MRV for Bangladesh
 - `make demo` — seed the fictional demo factory into Postgres · `make api` (:8000/docs) · `make worker` · `make dev-token`
 - Local Postgres needs no Docker: pgserver in `.pgdata/` (`make db-start`/`db-stop`); `DATABASE_URL` overrides
 - `make demo-streamlit` — offline Streamlit fallback on :8501
+- `make eval-extraction` — score extraction on `data/eval/bills/` and refresh the model card · `make eval-bills` (macOS) regenerates the set
 - `make sample-data` — regenerate the demo bills · `make requirements` — re-export `requirements.txt` after changing deps

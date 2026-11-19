@@ -15,13 +15,16 @@ from pydantic import BaseModel, Field
 
 from ctrace import config
 from ctrace.extraction import extract_document
+from ctrace.llm import FileCache
 from ctrace.pipeline import run
 from ctrace.reduction import prove_reduction
 from ctrace.report import FORMATS, build_facts, generate, to_pdf
 from ctrace.verify import Verifier
 
 from .auth import Principal, current_principal
+from .ratelimit import limit_llm
 
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 router = APIRouter(prefix="/v1/stateless", tags=["stateless"])
 Auth = Annotated[Principal, Depends(current_principal)]
 _verifier: Verifier | None = None
@@ -86,9 +89,12 @@ def _run(req: AnalyzeRequest):
 
 
 @router.post("/extract")
-async def extract(_: Auth, file: Annotated[UploadFile, File()]) -> dict:
-    data = await file.read()
-    return extract_document(data, file.filename or "upload", file.content_type or "application/pdf").as_dict()
+async def extract(p: Auth, file: Annotated[UploadFile, File()]) -> dict:
+    limit_llm(p.user_id)
+    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "File too large")
+    return extract_document(data, file.filename or "upload", file.content_type or "application/pdf", cache=FileCache()).as_dict()
 
 
 @router.post("/analyze")
@@ -104,7 +110,8 @@ def analyze(_: Auth, req: AnalyzeRequest) -> dict:
 
 
 @router.post("/report", response_model=None)
-def report(_: Auth, req: ReportRequest, pdf: bool = False) -> dict | Response:
+def report(p: Auth, req: ReportRequest, pdf: bool = False) -> dict | Response:
+    limit_llm(p.user_id)
     if req.format not in FORMATS:
         raise HTTPException(400, f"format must be one of {list(FORMATS)}")
     out, _prod = _run(req)

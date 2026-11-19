@@ -1,0 +1,1093 @@
+{
+ "method": "rules",
+ "models": [],
+ "prompt_version": null,
+ "run_at": "2026-11-19T18:38:09+00:00",
+ "n_bills": 36,
+ "composition": "16 pdf text (en), 10 photo (bn), 4 photo (en), 4 pdf text (bn), 2 pdf text (mixed)",
+ "metrics": {
+  "field_accuracy": {
+   "activity": 0.6111,
+   "period": 0.5278,
+   "quantity": 0.5278,
+   "unit": 0.6111,
+   "amount_bdt": 0.5,
+   "bill_no": 0.6111
+  },
+  "critical_accuracy": 0.5,
+  "by_group": {
+   "pdf_text/bn": {
+    "n": 4,
+    "critical_accuracy": 0.25
+   },
+   "pdf_text/en": {
+    "n": 16,
+    "critical_accuracy": 0.9375
+   },
+   "pdf_text/mixed": {
+    "n": 2,
+    "critical_accuracy": 1.0
+   },
+   "photo/bn": {
+    "n": 10,
+    "critical_accuracy": 0.0
+   },
+   "photo/en": {
+    "n": 4,
+    "critical_accuracy": 0.0
+   }
+  },
+  "privacy_leaks": 0,
+  "dropped_digit_flagged": true
+ },
+ "bills": [
+  {
+   "file": "en_a_01.pdf",
+   "group": "pdf_text/en",
+   "layout": "A",
+   "correct": {
+    "activity": true,
+    "period": true,
+    "quantity": true,
+    "unit": true,
+    "amount_bdt": true,
+    "bill_no": true
+   },
+   "critical": true,
+   "confidence": 1.0,
+   "method": "rules",
+   "predicted": {
+    "activity": "natural_gas",
+    "period": "2026-06",
+    "quantity": 35688.0,
+    "unit": "m3",
+    "amount_bdt": 1100553.28,
+    "bill_no": "A-2025-4100"
+   },
+   "issues": [],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "en_a_02.pdf",
+   "group": "pdf_text/en",
+   "layout": "A",
+   "correct": {
+    "activity": true,
+    "period": true,
+    "quantity": true,
+    "unit": true,
+    "amount_bdt": true,
+    "bill_no": true
+   },
+   "critical": true,
+   "confidence": 1.0,
+   "method": "rules",
+   "predicted": {
+    "activity": "grid_electricity",
+    "period": "2025-10",
+    "quantity": 236680.0,
+    "unit": "kWh",
+    "amount_bdt": 2736533.21,
+    "bill_no": "A-2026-4101"
+   },
+   "issues": [],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "en_a_03.pdf",
+   "group": "pdf_text/en",
+   "layout": "A",
+   "correct": {
+    "activity": true,
+    "period": true,
+    "quantity": true,
+    "unit": true,
+    "amount_bdt": true,
+    "bill_no": true
+   },
+   "critical": true,
+   "confidence": 1.0,
+   "method": "rules",
+   "predicted": {
+    "activity": "diesel",
+    "period": "2026-06",
+    "quantity": 1736.0,
+    "unit": "litre",
+    "amount_bdt": 196854.13,
+    "bill_no": "A-2027-4102"
+   },
+   "issues": [],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "en_a_04.pdf",
+   "group": "pdf_text/en",
+   "layout": "A",
+   "correct": {
+    "activity": true,
+    "period": true,
+    "quantity": true,
+    "unit": true,
+    "amount_bdt": true,
+    "bill_no": true
+   },
+   "critical": true,
+   "confidence": 1.0,
+   "method": "rules",
+   "predicted": {
+    "activity": "grid_electricity",
+    "period": "2025-04",
+    "quantity": 249516.0,
+    "unit": "kWh",
+    "amount_bdt": 2852070.76,
+    "bill_no": "A-2028-4103"
+   },
+   "issues": [],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "en_b_01.pdf",
+   "group": "pdf_text/en",
+   "layout": "B",
+   "correct": {
+    "activity": true,
+    "period": true,
+    "quantity": true,
+    "unit": true,
+    "amount_bdt": true,
+    "bill_no": true
+   },
+   "critical": true,
+   "confidence": 1.0,
+   "method": "rules",
+   "predicted": {
+    "activity": "natural_gas",
+    "period": "2025-08",
+    "quantity": 19251.0,
+    "unit": "m3",
+    "amount_bdt": 604821.9,
+    "bill_no": "INV88010"
+   },
+   "issues": [],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "en_b_02.pdf",
+   "group": "pdf_text/en",
+   "layout": "B",
+   "correct": {
+    "activity": true,
+    "period": true,
+    "quantity": true,
+    "unit": true,
+    "amount_bdt": true,
+    "bill_no": true
+   },
+   "critical": true,
+   "confidence": 1.0,
+   "method": "rules",
+   "predicted": {
+    "activity": "grid_electricity",
+    "period": "2026-11",
+    "quantity": 171743.0,
+    "unit": "kWh",
+    "amount_bdt": 1964059.07,
+    "bill_no": "INV88011"
+   },
+   "issues": [],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "en_b_03.pdf",
+   "group": "pdf_text/en",
+   "layout": "B",
+   "correct": {
+    "activity": true,
+    "period": true,
+    "quantity": true,
+    "unit": true,
+    "amount_bdt": true,
+    "bill_no": true
+   },
+   "critical": true,
+   "confidence": 1.0,
+   "method": "rules",
+   "predicted": {
+    "activity": "grid_electricity",
+    "period": "2026-07",
+    "quantity": 240209.0,
+    "unit": "kWh",
+    "amount_bdt": 2714445.61,
+    "bill_no": "INV88012"
+   },
+   "issues": [],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "en_b_04.pdf",
+   "group": "pdf_text/en",
+   "layout": "B",
+   "correct": {
+    "activity": true,
+    "period": true,
+    "quantity": true,
+    "unit": true,
+    "amount_bdt": true,
+    "bill_no": true
+   },
+   "critical": true,
+   "confidence": 1.0,
+   "method": "rules",
+   "predicted": {
+    "activity": "natural_gas",
+    "period": "2026-07",
+    "quantity": 36103.0,
+    "unit": "m3",
+    "amount_bdt": 1115170.5,
+    "bill_no": "INV88013"
+   },
+   "issues": [],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "en_c_01.pdf",
+   "group": "pdf_text/en",
+   "layout": "C",
+   "correct": {
+    "activity": true,
+    "period": true,
+    "quantity": true,
+    "unit": true,
+    "amount_bdt": true,
+    "bill_no": true
+   },
+   "critical": true,
+   "confidence": 1.0,
+   "method": "rules",
+   "predicted": {
+    "activity": "grid_electricity",
+    "period": "2025-08",
+    "quantity": 241700.0,
+    "unit": "kWh",
+    "amount_bdt": 2831212.43,
+    "bill_no": "C/7310"
+   },
+   "issues": [],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "en_c_02.pdf",
+   "group": "pdf_text/en",
+   "layout": "C",
+   "correct": {
+    "activity": true,
+    "period": true,
+    "quantity": true,
+    "unit": true,
+    "amount_bdt": true,
+    "bill_no": true
+   },
+   "critical": true,
+   "confidence": 1.0,
+   "method": "rules",
+   "predicted": {
+    "activity": "natural_gas",
+    "period": "2026-11",
+    "quantity": 34869.9871,
+    "unit": "m3",
+    "amount_bdt": 1065803.94,
+    "bill_no": "C/7311"
+   },
+   "issues": [],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "en_c_03.pdf",
+   "group": "pdf_text/en",
+   "layout": "C",
+   "correct": {
+    "activity": true,
+    "period": true,
+    "quantity": true,
+    "unit": true,
+    "amount_bdt": true,
+    "bill_no": true
+   },
+   "critical": true,
+   "confidence": 1.0,
+   "method": "rules",
+   "predicted": {
+    "activity": "grid_electricity",
+    "period": "2026-08",
+    "quantity": 230589.0,
+    "unit": "kWh",
+    "amount_bdt": 2723964.69,
+    "bill_no": "C/7312"
+   },
+   "issues": [],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "en_c_04.pdf",
+   "group": "pdf_text/en",
+   "layout": "C",
+   "correct": {
+    "activity": true,
+    "period": true,
+    "quantity": true,
+    "unit": true,
+    "amount_bdt": true,
+    "bill_no": true
+   },
+   "critical": true,
+   "confidence": 1.0,
+   "method": "rules",
+   "predicted": {
+    "activity": "natural_gas",
+    "period": "2025-05",
+    "quantity": 33915.0,
+    "unit": "m3",
+    "amount_bdt": 1092869.06,
+    "bill_no": "C/7313"
+   },
+   "issues": [],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "en_trap_vat.pdf",
+   "group": "pdf_text/en",
+   "layout": "trap_vat",
+   "correct": {
+    "activity": true,
+    "period": true,
+    "quantity": true,
+    "unit": true,
+    "amount_bdt": true,
+    "bill_no": true
+   },
+   "critical": true,
+   "confidence": 0.83,
+   "method": "rules",
+   "predicted": {
+    "activity": "grid_electricity",
+    "period": "2025-11",
+    "quantity": 212546.0,
+    "unit": "kWh",
+    "amount_bdt": 2479440.26,
+    "bill_no": "V-5521"
+   },
+   "issues": [],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "en_trap_dropped_digit.pdf",
+   "group": "pdf_text/en",
+   "layout": "trap_dropped_digit",
+   "correct": {
+    "activity": true,
+    "period": true,
+    "quantity": true,
+    "unit": true,
+    "amount_bdt": true,
+    "bill_no": true
+   },
+   "critical": true,
+   "confidence": 1.0,
+   "method": "rules",
+   "predicted": {
+    "activity": "natural_gas",
+    "period": "2026-02",
+    "quantity": 3864.0,
+    "unit": "m3",
+    "amount_bdt": 1236145.61,
+    "bill_no": "D-1189"
+   },
+   "issues": [
+    "Implied tariff 319.91 BDT/m3 is outside the expected 20–60 range → quantity or amount may be mis-read."
+   ],
+   "privacy_leak": false,
+   "tariff_flagged": true,
+   "escalated": false
+  },
+  {
+   "file": "en_trap_memo_date_only.pdf",
+   "group": "pdf_text/en",
+   "layout": "memo",
+   "correct": {
+    "activity": true,
+    "period": false,
+    "quantity": true,
+    "unit": true,
+    "amount_bdt": true,
+    "bill_no": true
+   },
+   "critical": false,
+   "confidence": 0.5,
+   "method": "rules",
+   "predicted": {
+    "activity": "diesel",
+    "period": null,
+    "quantity": 731.0,
+    "unit": "litre",
+    "amount_bdt": 85256.26,
+    "bill_no": "4471"
+   },
+   "issues": [
+    "Billing period missing."
+   ],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "en_trap_personal.pdf",
+   "group": "pdf_text/en",
+   "layout": "trap_personal",
+   "correct": {
+    "activity": true,
+    "period": true,
+    "quantity": true,
+    "unit": true,
+    "amount_bdt": true,
+    "bill_no": true
+   },
+   "critical": true,
+   "confidence": 1.0,
+   "method": "rules",
+   "predicted": {
+    "activity": "natural_gas",
+    "period": "2025-01",
+    "quantity": 36358.0,
+    "unit": "m3",
+    "amount_bdt": 1116838.29,
+    "bill_no": "A-2026-9001"
+   },
+   "issues": [],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "en_photo_01.jpg",
+   "group": "photo/en",
+   "layout": "A",
+   "correct": {
+    "activity": false,
+    "period": false,
+    "quantity": false,
+    "unit": false,
+    "amount_bdt": false,
+    "bill_no": false
+   },
+   "critical": false,
+   "confidence": 0.0,
+   "method": "rules",
+   "predicted": {
+    "activity": null,
+    "period": null,
+    "quantity": null,
+    "unit": null,
+    "amount_bdt": null,
+    "bill_no": null
+   },
+   "issues": [
+    "Rules parser cannot read photos"
+   ],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "en_photo_02.jpg",
+   "group": "photo/en",
+   "layout": "B",
+   "correct": {
+    "activity": false,
+    "period": false,
+    "quantity": false,
+    "unit": false,
+    "amount_bdt": false,
+    "bill_no": false
+   },
+   "critical": false,
+   "confidence": 0.0,
+   "method": "rules",
+   "predicted": {
+    "activity": null,
+    "period": null,
+    "quantity": null,
+    "unit": null,
+    "amount_bdt": null,
+    "bill_no": null
+   },
+   "issues": [
+    "Rules parser cannot read photos"
+   ],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "en_photo_03.jpg",
+   "group": "photo/en",
+   "layout": "C",
+   "correct": {
+    "activity": false,
+    "period": false,
+    "quantity": false,
+    "unit": false,
+    "amount_bdt": false,
+    "bill_no": false
+   },
+   "critical": false,
+   "confidence": 0.0,
+   "method": "rules",
+   "predicted": {
+    "activity": null,
+    "period": null,
+    "quantity": null,
+    "unit": null,
+    "amount_bdt": null,
+    "bill_no": null
+   },
+   "issues": [
+    "Rules parser cannot read photos"
+   ],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "en_photo_04.jpg",
+   "group": "photo/en",
+   "layout": "memo",
+   "correct": {
+    "activity": false,
+    "period": false,
+    "quantity": false,
+    "unit": false,
+    "amount_bdt": false,
+    "bill_no": false
+   },
+   "critical": false,
+   "confidence": 0.0,
+   "method": "rules",
+   "predicted": {
+    "activity": null,
+    "period": null,
+    "quantity": null,
+    "unit": null,
+    "amount_bdt": null,
+    "bill_no": null
+   },
+   "issues": [
+    "Rules parser cannot read photos"
+   ],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "bn_photo_01.png",
+   "group": "photo/bn",
+   "layout": "bn",
+   "correct": {
+    "activity": false,
+    "period": false,
+    "quantity": false,
+    "unit": false,
+    "amount_bdt": false,
+    "bill_no": false
+   },
+   "critical": false,
+   "confidence": 0.0,
+   "method": "rules",
+   "predicted": {
+    "activity": null,
+    "period": null,
+    "quantity": null,
+    "unit": null,
+    "amount_bdt": null,
+    "bill_no": null
+   },
+   "issues": [
+    "Rules parser cannot read photos"
+   ],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "bn_photo_02.jpg",
+   "group": "photo/bn",
+   "layout": "bn",
+   "correct": {
+    "activity": false,
+    "period": false,
+    "quantity": false,
+    "unit": false,
+    "amount_bdt": false,
+    "bill_no": false
+   },
+   "critical": false,
+   "confidence": 0.0,
+   "method": "rules",
+   "predicted": {
+    "activity": null,
+    "period": null,
+    "quantity": null,
+    "unit": null,
+    "amount_bdt": null,
+    "bill_no": null
+   },
+   "issues": [
+    "Rules parser cannot read photos"
+   ],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "bn_photo_03.jpg",
+   "group": "photo/bn",
+   "layout": "bn",
+   "correct": {
+    "activity": false,
+    "period": false,
+    "quantity": false,
+    "unit": false,
+    "amount_bdt": false,
+    "bill_no": false
+   },
+   "critical": false,
+   "confidence": 0.0,
+   "method": "rules",
+   "predicted": {
+    "activity": null,
+    "period": null,
+    "quantity": null,
+    "unit": null,
+    "amount_bdt": null,
+    "bill_no": null
+   },
+   "issues": [
+    "Rules parser cannot read photos"
+   ],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "bn_photo_04.png",
+   "group": "photo/bn",
+   "layout": "bn",
+   "correct": {
+    "activity": false,
+    "period": false,
+    "quantity": false,
+    "unit": false,
+    "amount_bdt": false,
+    "bill_no": false
+   },
+   "critical": false,
+   "confidence": 0.0,
+   "method": "rules",
+   "predicted": {
+    "activity": null,
+    "period": null,
+    "quantity": null,
+    "unit": null,
+    "amount_bdt": null,
+    "bill_no": null
+   },
+   "issues": [
+    "Rules parser cannot read photos"
+   ],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "bn_photo_05.jpg",
+   "group": "photo/bn",
+   "layout": "bn",
+   "correct": {
+    "activity": false,
+    "period": false,
+    "quantity": false,
+    "unit": false,
+    "amount_bdt": false,
+    "bill_no": false
+   },
+   "critical": false,
+   "confidence": 0.0,
+   "method": "rules",
+   "predicted": {
+    "activity": null,
+    "period": null,
+    "quantity": null,
+    "unit": null,
+    "amount_bdt": null,
+    "bill_no": null
+   },
+   "issues": [
+    "Rules parser cannot read photos"
+   ],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "bn_photo_06.jpg",
+   "group": "photo/bn",
+   "layout": "bn",
+   "correct": {
+    "activity": false,
+    "period": false,
+    "quantity": false,
+    "unit": false,
+    "amount_bdt": false,
+    "bill_no": false
+   },
+   "critical": false,
+   "confidence": 0.0,
+   "method": "rules",
+   "predicted": {
+    "activity": null,
+    "period": null,
+    "quantity": null,
+    "unit": null,
+    "amount_bdt": null,
+    "bill_no": null
+   },
+   "issues": [
+    "Rules parser cannot read photos"
+   ],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "bn_photo_07.png",
+   "group": "photo/bn",
+   "layout": "bn",
+   "correct": {
+    "activity": false,
+    "period": false,
+    "quantity": false,
+    "unit": false,
+    "amount_bdt": false,
+    "bill_no": false
+   },
+   "critical": false,
+   "confidence": 0.0,
+   "method": "rules",
+   "predicted": {
+    "activity": null,
+    "period": null,
+    "quantity": null,
+    "unit": null,
+    "amount_bdt": null,
+    "bill_no": null
+   },
+   "issues": [
+    "Rules parser cannot read photos"
+   ],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "bn_photo_08.jpg",
+   "group": "photo/bn",
+   "layout": "bn",
+   "correct": {
+    "activity": false,
+    "period": false,
+    "quantity": false,
+    "unit": false,
+    "amount_bdt": false,
+    "bill_no": false
+   },
+   "critical": false,
+   "confidence": 0.0,
+   "method": "rules",
+   "predicted": {
+    "activity": null,
+    "period": null,
+    "quantity": null,
+    "unit": null,
+    "amount_bdt": null,
+    "bill_no": null
+   },
+   "issues": [
+    "Rules parser cannot read photos"
+   ],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "bn_photo_09.jpg",
+   "group": "photo/bn",
+   "layout": "bn",
+   "correct": {
+    "activity": false,
+    "period": false,
+    "quantity": false,
+    "unit": false,
+    "amount_bdt": false,
+    "bill_no": false
+   },
+   "critical": false,
+   "confidence": 0.0,
+   "method": "rules",
+   "predicted": {
+    "activity": null,
+    "period": null,
+    "quantity": null,
+    "unit": null,
+    "amount_bdt": null,
+    "bill_no": null
+   },
+   "issues": [
+    "Rules parser cannot read photos"
+   ],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "bn_photo_10.png",
+   "group": "photo/bn",
+   "layout": "bn",
+   "correct": {
+    "activity": false,
+    "period": false,
+    "quantity": false,
+    "unit": false,
+    "amount_bdt": false,
+    "bill_no": false
+   },
+   "critical": false,
+   "confidence": 0.0,
+   "method": "rules",
+   "predicted": {
+    "activity": null,
+    "period": null,
+    "quantity": null,
+    "unit": null,
+    "amount_bdt": null,
+    "bill_no": null
+   },
+   "issues": [
+    "Rules parser cannot read photos"
+   ],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "bn_pdf_01.pdf",
+   "group": "pdf_text/bn",
+   "layout": "bn",
+   "correct": {
+    "activity": true,
+    "period": true,
+    "quantity": false,
+    "unit": true,
+    "amount_bdt": false,
+    "bill_no": true
+   },
+   "critical": false,
+   "confidence": 0.33,
+   "method": "rules",
+   "predicted": {
+    "activity": "natural_gas",
+    "period": "2026-01",
+    "quantity": null,
+    "unit": "m3",
+    "amount_bdt": null,
+    "bill_no": "661005"
+   },
+   "issues": [
+    "Consumption quantity missing."
+   ],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "bn_pdf_02.pdf",
+   "group": "pdf_text/bn",
+   "layout": "bn",
+   "correct": {
+    "activity": true,
+    "period": false,
+    "quantity": false,
+    "unit": true,
+    "amount_bdt": false,
+    "bill_no": true
+   },
+   "critical": false,
+   "confidence": 0.33,
+   "method": "rules",
+   "predicted": {
+    "activity": "grid_electricity",
+    "period": null,
+    "quantity": null,
+    "unit": "kWh",
+    "amount_bdt": null,
+    "bill_no": "661105"
+   },
+   "issues": [
+    "Consumption quantity missing.",
+    "Billing period missing."
+   ],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "bn_pdf_03.pdf",
+   "group": "pdf_text/bn",
+   "layout": "bn",
+   "correct": {
+    "activity": true,
+    "period": true,
+    "quantity": true,
+    "unit": true,
+    "amount_bdt": false,
+    "bill_no": true
+   },
+   "critical": true,
+   "confidence": 0.5,
+   "method": "rules",
+   "predicted": {
+    "activity": "diesel",
+    "period": "2025-06",
+    "quantity": 1207.0,
+    "unit": "litre",
+    "amount_bdt": null,
+    "bill_no": "661205"
+   },
+   "issues": [],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "bn_pdf_04.pdf",
+   "group": "pdf_text/bn",
+   "layout": "bn",
+   "correct": {
+    "activity": true,
+    "period": false,
+    "quantity": false,
+    "unit": true,
+    "amount_bdt": false,
+    "bill_no": true
+   },
+   "critical": false,
+   "confidence": 0.33,
+   "method": "rules",
+   "predicted": {
+    "activity": "grid_electricity",
+    "period": null,
+    "quantity": null,
+    "unit": "kWh",
+    "amount_bdt": null,
+    "bill_no": "661305"
+   },
+   "issues": [
+    "Consumption quantity missing.",
+    "Billing period missing."
+   ],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "mixed_01.pdf",
+   "group": "pdf_text/mixed",
+   "layout": "mixed",
+   "correct": {
+    "activity": true,
+    "period": true,
+    "quantity": true,
+    "unit": true,
+    "amount_bdt": true,
+    "bill_no": true
+   },
+   "critical": true,
+   "confidence": 0.83,
+   "method": "rules",
+   "predicted": {
+    "activity": "natural_gas",
+    "period": "2026-02",
+    "quantity": 24682.0,
+    "unit": "m3",
+    "amount_bdt": 797144.45,
+    "bill_no": "5120"
+   },
+   "issues": [],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  },
+  {
+   "file": "mixed_02.pdf",
+   "group": "pdf_text/mixed",
+   "layout": "mixed",
+   "correct": {
+    "activity": true,
+    "period": true,
+    "quantity": true,
+    "unit": true,
+    "amount_bdt": true,
+    "bill_no": true
+   },
+   "critical": true,
+   "confidence": 0.83,
+   "method": "rules",
+   "predicted": {
+    "activity": "grid_electricity",
+    "period": "2026-11",
+    "quantity": 155598.0,
+    "unit": "kWh",
+    "amount_bdt": 1770436.36,
+    "bill_no": "5121"
+   },
+   "issues": [],
+   "privacy_leak": false,
+   "tariff_flagged": false,
+   "escalated": false
+  }
+ ]
+}

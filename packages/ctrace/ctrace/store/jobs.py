@@ -18,12 +18,15 @@ from .db import Conn, org_tx
 
 STALE_AFTER = "10 minutes"
 Handler = Callable[[Conn, dict], dict]
-HANDLERS: dict[str, Handler] = {}
+HANDLERS: dict[str, tuple[Handler, bool]] = {}
 
 
-def handler(kind: str) -> Callable[[Handler], Handler]:
+def handler(kind: str, own_transactions: bool = False) -> Callable[[Handler], Handler]:
+    """Register a job handler. By default it runs inside one org-scoped transaction and receives the payload.
+    With `own_transactions=True` it receives the whole job and opens its own `org_tx` blocks, so slow work
+    (an LLM call) does not hold a transaction open."""
     def register(fn: Handler) -> Handler:
-        HANDLERS[kind] = fn
+        HANDLERS[kind] = (fn, own_transactions)
         return fn
     return register
 
@@ -71,9 +74,12 @@ def fail(conn: Conn, job: dict, error: str) -> str:
 
 
 def run_job(conn: Conn, job: dict) -> dict[str, Any]:
-    fn = HANDLERS.get(job["kind"])
-    if fn is None:
+    entry = HANDLERS.get(job["kind"])
+    if entry is None:
         raise LookupError(f"No C-Trace job handler for kind {job['kind']!r}")
+    fn, own = entry
+    if own:
+        return fn(conn, job)
     with org_tx(conn, job["org_id"], job["payload"].get("user_id")):
         return fn(conn, job["payload"])
 

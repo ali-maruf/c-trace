@@ -17,6 +17,7 @@ from .auth import MANAGE_ROLES, RAW_DOCUMENT_ROLES, READ_ROLES, REVIEW_ROLES, Pr
 from .schemas import PERIOD, AssetIn, CorrectionIn, FactoryIn, InterventionIn, ProductionIn, RejectIn, ReviewIn
 
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+MAX_FILES_PER_UPLOAD = 50
 router = APIRouter(prefix="/v1")
 Auth = Annotated[Principal, Depends(current_principal)]
 Period = Annotated[str | None, Query(pattern=PERIOD)]
@@ -103,6 +104,8 @@ async def upload_production_csv(request: Request, p: Auth, factory_id: str, file
              summary="Upload bills (PDF/JPEG/PNG). Re-uploading identical bytes is idempotent (SHA-256).")
 async def upload_documents(request: Request, p: Auth, factory_id: str, files: Annotated[list[UploadFile], File()]) -> list[dict]:
     p.require(MANAGE_ROLES, "upload documents")
+    if len(files) > MAX_FILES_PER_UPLOAD:
+        raise HTTPException(413, f"Upload at most {MAX_FILES_PER_UPLOAD} files per request")
     payloads = []
     for f in files:
         data = await f.read(MAX_UPLOAD_BYTES + 1)

@@ -32,6 +32,17 @@ KNOWLEDGE_DIR = Path(__file__).resolve().parent / "knowledge"
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 CTRACE_EXTRACTION_MODEL = os.getenv("CTRACE_EXTRACTION_MODEL", "claude-haiku-5-5")
 CTRACE_REPORT_MODEL = os.getenv("CTRACE_REPORT_MODEL", "claude-sonnet-5-5")
+# Extraction cascade: the first model reads every document; a read whose confidence is below the threshold
+# is re-read by the escalation model (set it to "" to disable escalation).
+CTRACE_EXTRACTION_ESCALATION_MODEL = os.getenv("CTRACE_EXTRACTION_ESCALATION_MODEL", "claude-sonnet-5-5")
+CTRACE_ESCALATE_BELOW = float(os.getenv("CTRACE_ESCALATE_BELOW", "0.7"))
+CTRACE_EXTRACTION_EFFORT = os.getenv("CTRACE_EXTRACTION_EFFORT", "low")
+CTRACE_EXTRACTION_PROMPT = os.getenv("CTRACE_EXTRACTION_PROMPT", "extract_bill/v2")
+# Server-side refusal fallback for models that support it ("default" or "off").
+CTRACE_LLM_FALLBACKS = os.getenv("CTRACE_LLM_FALLBACKS", "default")
+CTRACE_LLM_TIMEOUT_S = float(os.getenv("CTRACE_LLM_TIMEOUT_S", "120"))
+CTRACE_LLM_RATE_PER_MIN = int(os.getenv("CTRACE_LLM_RATE_PER_MIN", "20"))  # per user, LLM-backed endpoints
+PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
 
 def llm_enabled() -> bool:

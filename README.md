@@ -52,7 +52,9 @@ production + profile ───────────────────�
 | Module | What it does |
 |---|---|
 | `packages/ctrace/ctrace/factors.py` | IPCC 2006 fuel factors + AR6 GWPs; Bangladesh grid intensity from Ember/OWID by year |
-| `packages/ctrace/ctrace/extraction.py` | Offline PDF parser and Claude vision path → one `BillRecord` schema; unit normalisation; tariff sanity check |
+| `packages/ctrace/ctrace/extraction.py` | Offline parser (English + Bangla labels and digits) → one `BillRecord` schema; unit normalisation; tariff sanity check |
+| `packages/ctrace/ctrace/extraction_llm.py`, `llm.py`, `prompts/` | Claude extraction: versioned prompt, strict schema, verbatim evidence, evidence check, cache, Haiku → Sonnet escalation, call log |
+| `ml/eval_extraction.py`, `data/eval/bills/` | 36 labelled fictional bills (English, Bangla, photos, traps); field accuracy per method in the model card |
 | `packages/ctrace/ctrace/calculate.py` | Deterministic ledger: every row keeps trace ID, document SHA-256, factor, source and the arithmetic |
 | `packages/ctrace/ctrace/simulator.py` | Transparent factory energy simulator used to train and test the verifier |
 | `packages/ctrace/ctrace/verify.py` | C-Trace Verifier: expected-energy models, per-period self-calibration, Isolation Forest, grading |

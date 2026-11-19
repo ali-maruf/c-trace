@@ -272,3 +272,24 @@ def test_stateless_extract_requires_auth_and_works_offline(client, demo_headers)
     rec = client.post("/v1/stateless/extract", files=files, headers=demo_headers).json()
     assert rec["activity"] == "natural_gas" and rec["period"] == "2025-09"
     assert any("tariff" in i.lower() for i in rec["issues"])
+
+
+def test_llm_rate_limit_applies_per_user(monkeypatch):
+    from fastapi import HTTPException
+
+    from ctrace_api import ratelimit
+    monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "test-key-not-real")
+    limiter = ratelimit.SlidingWindow(per_minute=2)
+    monkeypatch.setattr(ratelimit, "llm_limiter", limiter)
+    ratelimit.limit_llm("u1")
+    ratelimit.limit_llm("u1")
+    ratelimit.limit_llm("u2")
+    with pytest.raises(HTTPException) as e:
+        ratelimit.limit_llm("u1")
+    assert e.value.status_code == 429 and "Retry-After" in (e.value.headers or {})
+
+
+def test_too_many_files_in_one_upload(client, small_factory):
+    files = [("files", (f"f{i}.pdf", b"%PDF-1.4 x" + bytes([i]), "application/pdf")) for i in range(51)]
+    r = client.post(f"/v1/factories/{small_factory['factory_id']}/documents", headers=small_factory["headers"], files=files)
+    assert r.status_code == 413

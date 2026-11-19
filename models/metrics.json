@@ -2,7 +2,7 @@
   "brand": "C-Trace",
   "model": "C-Trace Verifier v1",
   "trained_on": "C-Trace simulator v1 (600 factories \u00d7 36 months, seed 42)",
-  "trained_date": "2026-11-19",
+  "trained_date": "2026-11-20",
   "features": [
     "type_code",
     "log_workers",

@@ -119,6 +119,7 @@ pdfplumber==0.11.10
     # via ctrace
 pillow==13.0.0
     # via
+    #   ctrace
     #   pdfplumber
     #   reportlab
     #   streamlit

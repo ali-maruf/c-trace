@@ -22,8 +22,9 @@ import pandas as pd
 
 from ..calculate import build_ledger, monthly_summary
 from ..extraction import ACTIVITIES, CANONICAL_UNIT, extract_document, normalize_period, sha256_bytes
+from ..llm import LLMCall
 from ..pipeline import tariff_corrections
-from .db import Conn
+from .db import Conn, org_tx
 from .jobs import enqueue, handler
 from .storage import EXT, Storage, default_storage, document_key
 
@@ -221,44 +222,83 @@ def document_bytes(conn: Conn, document_id: str, storage: Storage | None = None)
     return d, (storage or default_storage()).get(d["storage_path"])
 
 
-@handler("extract_document")
-def _extract_job(conn: Conn, payload: dict) -> dict:
-    return run_extraction(conn, payload["document_id"])
+@handler("extract_document", own_transactions=True)
+def _extract_job(conn: Conn, job: dict) -> dict:
+    return run_extraction(conn, str(job["org_id"]), job["payload"].get("user_id"), job["payload"]["document_id"])
 
 
-def run_extraction(conn: Conn, document_id: str, storage: Storage | None = None) -> dict:
+class DbCache:
+    """Org-scoped cache of model reads (`llm_cache`). Each get/put is its own short transaction."""
+
+    def __init__(self, conn: Conn, org_id: str, user_id: str | None):
+        self.conn, self.org_id, self.user_id = conn, org_id, user_id
+
+    def get(self, key: str) -> dict | None:
+        sha, model, prompt = key.split(":", 2)
+        with org_tx(self.conn, self.org_id, self.user_id):
+            row = self.conn.execute("select payload from llm_cache where document_sha256 = %s and model = %s and prompt_version = %s",
+                                    (sha, model, prompt)).fetchone()
+        return row["payload"] if row else None
+
+    def put(self, key: str, value: dict) -> None:
+        sha, model, prompt = key.split(":", 2)
+        with org_tx(self.conn, self.org_id, self.user_id):
+            self.conn.execute("insert into llm_cache (org_id, document_sha256, model, prompt_version, payload) "
+                              "values (ctrace_current_org(), %s, %s, %s, %s) on conflict do nothing",
+                              (sha, model, prompt, json.dumps(value, ensure_ascii=False)))
+
+
+def log_llm_calls(conn: Conn, calls: list[LLMCall]) -> None:
+    with conn.cursor() as cur:
+        cur.executemany(
+            "insert into llm_calls (org_id, purpose, model, prompt_version, input_tokens, output_tokens, latency_ms, "
+            "document_sha256, stop_reason, error) values (ctrace_current_org(), %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            [(c.purpose, c.model, c.prompt_version, c.input_tokens, c.output_tokens, c.latency_ms, c.document_sha256,
+              c.stop_reason, c.error) for c in calls])
+
+
+def run_extraction(conn: Conn, org_id: str, user_id: str | None, document_id: str, storage: Storage | None = None) -> dict:
     """Read a stored document, record the extraction, create/refresh its activity record, rebuild the ledger.
+
+    Runs in three steps so no transaction is open during the model call: read the document; extract
+    (cache lookups and writes are their own short transactions); write the results and the call log.
     A record a human has already confirmed, corrected or rejected is never overwritten by re-extraction."""
-    doc, data = document_bytes(conn, document_id, storage)
-    rec = extract_document(data, doc["file_name"], doc["media_type"])
+    with org_tx(conn, org_id, user_id):
+        doc, data = document_bytes(conn, document_id, storage)
+    calls: list[LLMCall] = []
+    rec = extract_document(data, doc["file_name"], doc["media_type"], cache=DbCache(conn, org_id, user_id), on_call=calls.append)
     if rec.doc_sha256 != doc["sha256"]:
         raise RuntimeError(f"Stored bytes for document {document_id} do not match its SHA-256")
     method, _, model = rec.extraction_method.partition(":")
-    ext = conn.execute(
-        "insert into extractions (org_id, document_id, method, model, raw_json, field_evidence, issues, confidence) "
-        "values (ctrace_current_org(), %s, %s, %s, %s, %s, %s, %s) returning id",
-        (document_id, method, model or None, json.dumps(rec.as_dict()), json.dumps(rec.evidence),
-         json.dumps(rec.issues), rec.extraction_confidence),
-    ).fetchone()
-    assert ext is not None
-    row = conn.execute(
-        """insert into activity_records (org_id, factory_id, document_id, extraction_id, activity, period, quantity,
-                                         unit, amount_bdt, bill_no, supplier)
-           values (ctrace_current_org(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-           on conflict (document_id) do update set
-             extraction_id = excluded.extraction_id, activity = excluded.activity, period = excluded.period,
-             quantity = excluded.quantity, unit = excluded.unit, amount_bdt = excluded.amount_bdt,
-             bill_no = excluded.bill_no, supplier = excluded.supplier, updated_at = now()
-           where activity_records.status = 'extracted'
-           returning id""",
-        (doc["factory_id"], document_id, ext["id"], rec.activity, rec.period, rec.quantity, rec.unit,
-         rec.amount_bdt, rec.bill_no, rec.supplier),
-    ).fetchone()
-    if row is None:  # human-reviewed record kept as is
-        row = conn.execute("select id from activity_records where document_id = %s", (document_id,)).fetchone()
-    assert row is not None
-    n = rebuild_ledger(conn, doc["factory_id"])
-    return {"extraction_id": str(ext["id"]), "activity_record_id": str(row["id"]), "issues": rec.issues, "ledger_rows": n}
+    field_evidence = {k: {"text": v, "confidence": rec.field_confidence.get(k)} for k, v in rec.evidence.items()}
+    with org_tx(conn, org_id, user_id):
+        log_llm_calls(conn, calls)
+        ext = conn.execute(
+            "insert into extractions (org_id, document_id, method, model, prompt_version, raw_json, field_evidence, issues, confidence) "
+            "values (ctrace_current_org(), %s, %s, %s, %s, %s, %s, %s, %s) returning id",
+            (document_id, method, model or None, rec.prompt_version, json.dumps(rec.as_dict(), ensure_ascii=False),
+             json.dumps(field_evidence, ensure_ascii=False), json.dumps(rec.issues, ensure_ascii=False), rec.extraction_confidence),
+        ).fetchone()
+        assert ext is not None
+        row = conn.execute(
+            """insert into activity_records (org_id, factory_id, document_id, extraction_id, activity, period, quantity,
+                                             unit, amount_bdt, bill_no, supplier)
+               values (ctrace_current_org(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+               on conflict (document_id) do update set
+                 extraction_id = excluded.extraction_id, activity = excluded.activity, period = excluded.period,
+                 quantity = excluded.quantity, unit = excluded.unit, amount_bdt = excluded.amount_bdt,
+                 bill_no = excluded.bill_no, supplier = excluded.supplier, updated_at = now()
+               where activity_records.status = 'extracted'
+               returning id""",
+            (doc["factory_id"], document_id, ext["id"], rec.activity, rec.period, rec.quantity, rec.unit,
+             rec.amount_bdt, rec.bill_no, rec.supplier),
+        ).fetchone()
+        if row is None:  # human-reviewed record kept as is
+            row = conn.execute("select id from activity_records where document_id = %s", (document_id,)).fetchone()
+        assert row is not None
+        n = rebuild_ledger(conn, doc["factory_id"])
+    return {"extraction_id": str(ext["id"]), "activity_record_id": str(row["id"]), "issues": rec.issues, "ledger_rows": n,
+            "method": rec.extraction_method, "llm_calls": len(calls)}
 
 
 # ------------------------------------------------------------------ activity records and ledger

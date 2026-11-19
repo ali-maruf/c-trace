@@ -115,3 +115,73 @@ entry of the official national grid factor.
 ### D18. Stateless prototype endpoints moved to `/v1/stateless/*`, behind auth
 `/extract`, `/analyze` and `/report` were unauthenticated. With an API key set they spend LLM tokens, so they
 now require a valid token. They store nothing. The Streamlit fallback calls `ctrace` directly and doesn't use them.
+
+## Phase 3 — extraction v2
+
+### D19. Structured outputs, not forced tool use
+The brief asked for "tool use with a strict JSON schema". The current docs (Claude API skill and the
+structured-outputs page, Nov 2026) say `claude-sonnet-5-5`, our escalation model, rejects forced
+`tool_choice` (`any`/`tool`) with a 400. `tool_choice: auto` doesn't guarantee a call. Structured outputs
+(`output_config.format` with a JSON schema) give the same schema guarantee on every model, so both models
+use that one mechanism. The schema follows the documented limits: `additionalProperties: false` everywhere,
+no numeric or length constraints, and every field required with no union types (the limits are 24 optional
+and 16 union parameters). A static test enforces this.
+
+### D20. The model returns printed text; code parses it
+Each field is `{value, evidence, confidence}`, and `value` is the string as printed (Bangla digits, lakh
+grouping, "MWh"). C-Trace converts digits, numbers, months and units in code (`ctrace.textnorm`,
+`ctrace.extraction.finalize`). Rule 1 of the brief ("AI reads; code calculates") then holds down to unit
+conversion, and the same normaliser serves the rules path.
+
+### D21. Evidence check and confidence
+A numeric value whose digits don't appear in its own quoted evidence has its confidence capped at 0.5 and gets
+an issue. This catches a reader that "corrects" a number. A document's confidence is the minimum over
+document type, period and quantity. Below `CTRACE_ESCALATE_BELOW` (0.7) the cascade re-reads with the
+escalation model and keeps the better read. If that is still below 0.7, the record says a human should check it.
+For text-layer PDFs, a disagreement on quantity between the rules parser and the vision read is raised too.
+
+### D22. Model settings
+- Extraction runs at `effort: low` on Haiku 5.5 and Sonnet 5.5. Thinking can't be disabled on Sonnet 5.5,
+  and effort is the documented control.
+- The Sonnet 5.5 escalation call opts into the server-side refusal fallback (`fallbacks: "default"`, beta
+  `server-side-fallback-2026-07-01`), as the Claude API guidance recommends for that model. Set
+  `CTRACE_LLM_FALLBACKS=off` to remove it. Haiku 5.5 has no server-side fallback; a refusal there escalates to Sonnet.
+- `refusal` and `max_tokens` stop reasons are never parsed as data.
+- Images are downscaled to 2576 px on the long edge (the current models' limit) and kept under 5 MB, which
+  also satisfies Bedrock's per-image limit. PDFs over 30 MB are refused before the call (the request limit is 32 MB).
+- System-prompt caching is not set: the prompt is far shorter than the minimum cacheable prefix.
+
+### D23. Caching and the call log
+Reads are cached by `(document SHA-256, model, prompt version)`. The store uses an org-scoped table
+(`llm_cache`, RLS), so one organisation's paid read is never served to another. The demo, the stateless API and
+the eval use a local file cache (`data/cache/llm/`, git-ignored). Every real call writes an `llm_calls` row
+(purpose, model, prompt version, tokens, latency, document hash, stop reason, error). The extraction job runs in
+three short transactions, so no transaction is open during a model call.
+
+### D24. Personal data
+The prompt forbids personal data in evidence, and code removes it again (`redact_personal`): values after
+name/address/phone/email/NID labels in English and Bangla, emails, and Bangladeshi mobile numbers in either digit
+set. The schema has no field for a person. The eval counts privacy leaks per method.
+
+### D25. Eval set
+36 fictional bills (`data/eval/bills/`, 5 MB, committed) with ground truth generated from the same spec that prints
+each bill. They cover English text PDFs in three layouts, traps, English and Bangla phone photos, Bangla text-layer
+PDFs and mixed-script bills. Bangla is rendered with CoreText through a small Swift script, because Pillow on this
+machine lacks raqm shaping. Regenerating the set needs macOS; evaluating doesn't. The brief asked for "anonymised real
+ones with consent" too: none are available yet, and the model card says the synthetic set is an upper bound for the
+rules parser.
+Finding: pdfplumber returns Bangla from these PDFs in visual order, which is common in the field. The rules path
+reorders pre-base vowel signs when a document shows that pattern. Conjuncts drawn as private glyphs can't be
+recovered, which is why the rules path scores 25% on Bangla PDFs.
+
+### D26. LLM methods are not yet scored
+No Anthropic key was available while building Phase 3. The eval, the fake-client tests and the live contract test
+(`packages/ctrace/tests/test_anthropic_contract.py`, skipped without a key) are ready. The card shows "not run"
+for haiku, sonnet and cascade until `make eval-extraction` runs with `ANTHROPIC_API_KEY`. The brief's "recorded with
+VCR" contract tests are replaced by that live test plus SDK-shaped fakes, because a cassette can't be recorded
+without a key.
+
+### D27. Rate limits
+The stateless `extract` and `report` endpoints call the LLM synchronously. They are limited to
+`CTRACE_LLM_RATE_PER_MIN` (20) per user per API instance (in-process sliding window). Uploads are capped at 50 files
+per request, and their extraction runs in the worker one job at a time.

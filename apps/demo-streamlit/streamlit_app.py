@@ -9,6 +9,7 @@ import streamlit as st
 
 from ctrace import BRAND, TAGLINE, config
 from ctrace.extraction import extract_document
+from ctrace.llm import FileCache
 from ctrace.pipeline import run
 from ctrace.reduction import prove_reduction
 from ctrace.report import FORMATS, build_facts, generate, to_pdf
@@ -47,7 +48,7 @@ def extract_all(files: dict[str, bytes]) -> pd.DataFrame:
     prog = st.progress(0.0, text="C-Trace is reading your documents…")
     for i, (name, data) in enumerate(files.items()):
         mt = "application/pdf" if name.lower().endswith(".pdf") else f"image/{'jpeg' if name.lower().endswith(('jpg', 'jpeg')) else 'png'}"
-        rows.append(extract_document(data, name, mt).as_dict())
+        rows.append(extract_document(data, name, mt, cache=FileCache()).as_dict())
         prog.progress((i + 1) / len(files), text=f"Read {name}")
     prog.empty()
     return pd.DataFrame(rows)

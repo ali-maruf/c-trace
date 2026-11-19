@@ -16,6 +16,7 @@ from datetime import date
 
 import numpy as np
 import pandas as pd
+from model_card import write_model_card  # ml/ is on sys.path when run as a script
 from sklearn.ensemble import HistGradientBoostingRegressor, IsolationForest
 from sklearn.metrics import mean_absolute_percentage_error, precision_recall_fscore_support, roc_auc_score
 from sklearn.model_selection import GroupShuffleSplit
@@ -161,55 +162,8 @@ def main(argv=None):
     config.MODELS_DIR.mkdir(exist_ok=True)
     v.save()
     (config.MODELS_DIR / "metrics.json").write_text(json.dumps(v.meta, indent=2))
-    write_model_card(v.meta)
+    write_model_card()
     print(json.dumps(metrics, indent=2))
-
-
-def write_model_card(meta: dict):
-    reg, det = meta["metrics"]["regression"], meta["metrics"]["detection"]
-    names = {"gas_m3": "Natural gas", "grid_kwh": "Grid electricity", "diesel_l": "Diesel"}
-    lines = [
-        "# C-Trace Verifier v1 — Model Card", "",
-        f"*Trained {meta['trained_date']} on {meta['trained_on']}.*", "",
-        "## What it does",
-        "Predicts how much natural gas, grid electricity and diesel a garment factory *should* have used in a month, "
-        "given its production, type, assets and weather. C-Trace compares that to what the bills say and flags months "
-        "that don't add up. It does **not** calculate emissions — that is deterministic code with IPCC/Ember factors.", "",
-        "## Algorithm", meta["algorithm"] + ".", "",
-        f"Features: `{', '.join(meta['features'])}`", "",
-        f"Factories — train: {meta['n_train_factories']}, calibration: {meta['n_cal_factories']}, "
-        f"held-out test: {meta['n_test_factories']} (split by factory, never seen in training).", "",
-        "## Prediction quality (held-out factories)", "",
-        "| Energy carrier | MAPE, new factory | MAPE after self-calibration | σ (log residual) |", "|---|---|---|---|",
-    ]
-    for t, m in reg.items():
-        lines.append(f"| {names[t]} | {m['MAPE_fleet_model_new_factory']:.1%} | {m['MAPE_after_factory_calibration']:.1%} | {m['sigma_log_residual']:.3f} |")
-    lines += ["", "## Error detection (5% injected errors, held-out factories)", "",
-              "| Energy carrier | ROC-AUC | Precision | Recall | F1 | Naive month-over-month rule F1 |", "|---|---|---|---|---|---|"]
-    for t, m in det.items():
-        lines.append(f"| {names[t]} | {m['ROC_AUC']:.3f} | {m['precision@z3']:.1%} | {m['recall@z3']:.1%} | {m['F1@z3']:.1%} | {m['naive_MoM_rule_F1']:.1%} |")
-    lines += ["", "Grading used in the app: gas and grid electricity → Medium at |z| ≥ 2.5, Low at |z| ≥ 3; "
-              "diesel → Medium at |z| ≥ 3, Low at |z| ≥ 5 (diesel depends on unobserved grid outages). "
-              "Document checks (implied tariff, missing or duplicate bills) can also set a month to Low.",
-              "", "Recall by error type:", ""]
-    for t, m in det.items():
-        kinds = ", ".join(f"{k}: {v:.0%}" for k, v in m["recall_by_anomaly_type"].items())
-        lines.append(f"- **{names[t]}** — {kinds}")
-    lines += [
-        "", "## Limitations — read before quoting these numbers",
-        "- **Training data is simulated.** Bangladesh has no open factory-level monthly energy dataset. The C-Trace "
-        "simulator (`packages/ctrace/ctrace/simulator.py`) encodes transparent engineering assumptions (kWh/piece, steam per piece, "
-        "captive gas generation, outages, solar yield, Eid shutdowns). Metrics show the method works on data with this "
-        "structure; they are **not** proof of real-world accuracy. Retrain with pilot data: `uv run python ml/train.py --data pilot.csv`.",
-        "- Small under-reporting (<30%) is hard to separate from genuine efficiency gains; C-Trace grades such months "
-        "Medium and asks for evidence rather than accusing.",
-        "- Diesel use depends on grid outages, which are noisy, so diesel flags are weaker.",
-        "", "## Responsible use",
-        "- A flag means *please check this document*, never *this factory is cheating*. A human reviews every Low grade.",
-        "- No personal data is used. Factory data stays private to the factory unless it chooses to share a report.",
-        "- Every reported tonne is traceable to a source document hash and an emission factor with a citation.",
-    ]
-    (config.MODELS_DIR / "MODEL_CARD.md").write_text("\n".join(lines) + "\n")
 
 
 if __name__ == "__main__":
