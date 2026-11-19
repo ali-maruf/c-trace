@@ -21,6 +21,9 @@ from reportlab.pdfgen import canvas
 
 from ctrace import config
 from ctrace.simulator import periods, simulate_month
+from ctrace.weather import monthly
+
+DEMO_LAT, DEMO_LON = 24.0, 90.42  # approximate centre of Gazipur district; the factory itself is fictional
 
 PROFILE = {
     "factory_id": "DEMO-001",
@@ -87,10 +90,13 @@ def main():
     for old in config.BILLS_DIR.glob("*.pdf"):
         old.unlink()
     rows, prod = [], []
+    # The demo factory lives in real weather: NASA POWER monthly T2M at its location (labelled climatology for months
+    # POWER has not published yet), the same series C-Trace uses when it verifies the factory.
+    weather = monthly(DEMO_LAT, DEMO_LON, periods("2025-01", "2026-10")).set_index("period")
     for idx, p in enumerate(periods("2025-01", "2026-10")):
         gain = 0.12 if p >= "2026-01" else 0.0
         kwp = 600.0 if p >= "2026-04" else 0.0
-        r = simulate_month(PROFILE, p, idx, rng, gas_efficiency_gain=gain, solar_override_kwp=kwp)
+        r = simulate_month(PROFILE, p, idx, rng, t2m=float(weather.at[p, "t2m_c"]), gas_efficiency_gain=gain, solar_override_kwp=kwp)
         rows.append(r)
         prod.append({"period": p, "pieces": r["pieces"]})
         for activity, col in (("natural_gas", "gas_m3"), ("grid_electricity", "grid_kwh"), ("diesel", "diesel_l")):
@@ -105,6 +111,7 @@ def main():
     pd.DataFrame(prod).to_csv(config.SAMPLES_DIR / "production.csv", index=False)
     pd.DataFrame(rows).to_csv(config.SAMPLES_DIR / "ground_truth_do_not_upload.csv", index=False)
     profile = {k: PROFILE[k] for k in ("factory_id", "name", "location", "factory_type", "workers", "has_wet_processing")}
+    profile.update({"lat": DEMO_LAT, "lon": DEMO_LON})
     profile.update({"captive_gas_gen": 1, "solar": [{"from": "2026-04", "kwp": 600}],
                     "interventions": [{"from": "2026-01", "measure": "Boiler economiser + steam-trap repair"},
                                       {"from": "2026-04", "measure": "600 kWp rooftop solar"}]})

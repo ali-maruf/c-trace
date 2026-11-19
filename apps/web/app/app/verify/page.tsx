@@ -73,7 +73,17 @@ export default function VerifyPage() {
                 <CartesianGrid stroke="#e2e8f0" vertical={false} />
                 <XAxis dataKey="period" tickFormatter={monthLabel} tick={{ fontSize: 11 }} minTickGap={16} />
                 <YAxis tick={{ fontSize: 11 }} width={56} tickFormatter={(x: number) => (x >= 1000 ? `${Math.round(x / 1000)}k` : String(x))} />
-                <Tooltip formatter={(val, name) => [n(Number(val)), String(name)]} labelFormatter={(l) => monthLabel(String(l))} />
+                <Tooltip content={({ active, payload, label }) => {
+                  const d = active && payload?.[0] ? (payload[0].payload as { expected: number | null; reported: number | null; lo: number | null; band: number | null; confidence: Confidence }) : null;
+                  if (!d) return null;
+                  return (
+                    <div className="tabular rounded-md border border-line bg-white px-3 py-2 text-xs shadow">
+                      <p className="font-medium">{monthLabel(String(label))} · {d.confidence}</p>
+                      <p>Reported: {n(d.reported)} {UNIT_OF[target]}</p>
+                      <p className="text-slate">Expected: {n(d.expected)}{d.lo !== null && d.band !== null && <> (90% range {n(d.lo)}–{n(d.lo + d.band)})</>}</p>
+                    </div>
+                  );
+                }} />
                 <Area dataKey="lo" stackId="b" stroke="none" fill="transparent" isAnimationActive={false} legendType="none" name="range start" />
                 <Area dataKey="band" stackId="b" stroke="none" fill="#0F766E" fillOpacity={0.12} isAnimationActive={false} name="90% expected range" />
                 <Line dataKey="expected" stroke="#475569" strokeDasharray="5 4" dot={false} isAnimationActive={false} name="Expected" />
@@ -107,17 +117,23 @@ export default function VerifyPage() {
 function MonthDetail({ r, target, runId, canResolve }: { r: VerificationResult; target: Target; runId: string; canResolve: boolean }) {
   const c = r.z[target];
   const d = c.drivers;
-  const steps = d ? (() => {
+  // Waterfall on a zoomed axis: contributions are small next to the totals, so the axis spans the path, not 0…total.
+  const { steps, lo, hi } = d ? (() => {
+    const path = [d.typical];
+    for (const k of ["production", "weather", "solar", "season"] as const) path.push(path.at(-1)! + d[k]);
+    const min = Math.min(...path), max = Math.max(...path);
+    const pad = Math.max((max - min) * 0.35, Math.abs(max) * 0.01, 1);
+    const lo0 = Math.max(0, min - pad), hi0 = max + pad;
     let acc = d.typical;
-    const out = [{ name: "Typical month", base: 0, value: d.typical, total: true }];
+    const out: { name: string; base: number; value: number; total: boolean; sign?: number; shown: number }[] = [{ name: "Typical", base: lo0, value: d.typical - lo0, total: true, shown: d.typical }];
     for (const k of ["production", "weather", "solar", "season"] as const) {
       const v = d[k];
-      out.push({ name: k[0]!.toUpperCase() + k.slice(1), base: v >= 0 ? acc : acc + v, value: Math.abs(v), total: false, sign: v } as never);
+      out.push({ name: k[0]!.toUpperCase() + k.slice(1), base: v >= 0 ? acc : acc + v, value: Math.abs(v), total: false, sign: v, shown: v });
       acc += v;
     }
-    out.push({ name: "Expected", base: 0, value: acc, total: true });
-    return out as { name: string; base: number; value: number; total: boolean; sign?: number }[];
-  })() : [];
+    out.push({ name: "Expected", base: lo0, value: acc - lo0, total: true, shown: acc });
+    return { steps: out, lo: lo0, hi: hi0 };
+  })() : { steps: [], lo: 0, hi: 0 };
   return (
     <Card>
       <CardTitle hint={`${TARGET_LABEL[target]} · z = ${c.z === null ? "—" : c.z.toFixed(1)}`} action={<ConfidencePill value={r.confidence} />}>{monthLabel(r.period)}</CardTitle>
@@ -135,8 +151,12 @@ function MonthDetail({ r, target, runId, canResolve }: { r: VerificationResult; 
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={steps} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                 <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} />
-                <YAxis hide domain={["dataMin * 0.85", "auto"]} />
-                <Tooltip formatter={(_v, _n, p) => { const s = p.payload as { sign?: number; value: number; total: boolean }; return [s.total ? n(s.value) : `${(s.sign ?? 0) >= 0 ? "+" : "−"}${n(s.value)}`, UNIT_OF[target] ?? ""]; }} />
+                <YAxis domain={[lo, hi]} allowDataOverflow tick={{ fontSize: 10 }} width={52} tickFormatter={(x: number) => (x >= 1000 ? `${Math.round(x / 1000)}k` : String(Math.round(x)))} />
+                <Tooltip cursor={{ fill: "#f1f5f9" }} content={({ active, payload }) => {
+                  const st = active && payload?.[0] ? (payload[0].payload as { name: string; total: boolean; shown: number }) : null;
+                  if (!st) return null;
+                  return <div className="tabular rounded-md border border-line bg-white px-2 py-1 text-xs shadow">{st.name}: {st.total ? n(st.shown) : `${st.shown >= 0 ? "+" : "−"}${n(Math.abs(st.shown))}`} {UNIT_OF[target]}</div>;
+                }} />
                 <Bar dataKey="base" stackId="w" fill="transparent" isAnimationActive={false} />
                 <Bar dataKey="value" stackId="w" isAnimationActive={false}>
                   {steps.map((s) => <Cell key={s.name} fill={s.total ? "#475569" : (s.sign ?? 0) >= 0 ? "#D97706" : "#0F766E"} />)}
@@ -144,7 +164,7 @@ function MonthDetail({ r, target, runId, canResolve }: { r: VerificationResult; 
               </BarChart>
             </ResponsiveContainer>
           </ChartFrame>
-          <p className="mt-1 text-xs text-slate">Exact Shapley contributions; they add up to the expected value. Amber raises expected use, teal lowers it.</p>
+          <p className="mt-1 text-xs text-slate">Exact Shapley contributions; they add up to the expected value. Amber raises expected use, teal lowers it. The axis does not start at zero.</p>
         </>
       )}
       {r.confidence !== "High" && <Resolve r={r} runId={runId} canResolve={canResolve} />}

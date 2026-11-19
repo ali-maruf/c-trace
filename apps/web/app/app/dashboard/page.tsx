@@ -85,8 +85,9 @@ export default function Dashboard() {
                     <Bar key={a} yAxisId="t" dataKey={a} name={ACTIVITY_LABEL[a]} stackId="s" fill={ACTIVITY_COLOR[a]} cursor="pointer" isAnimationActive={false} />
                   ))}
                   <Line yAxisId="i" dataKey="kgco2e_per_piece" name="kg CO₂e / piece" stroke="#111827" strokeWidth={1.5} dot={false} isAnimationActive={false} />
-                  {ivs.map((iv) => (
-                    <ReferenceLine key={iv.id} yAxisId="t" x={iv.from_period} stroke="#DC2626" strokeDasharray="4 3" label={{ value: iv.measure.split(" ").slice(0, 2).join(" "), position: "insideTopRight", fontSize: 10, fill: "#DC2626" }} />
+                  {ivs.map((iv, i) => (
+                    <ReferenceLine key={iv.id} yAxisId="t" x={iv.from_period} stroke="#DC2626" strokeDasharray="4 3"
+                      label={{ value: iv.measure.split(/[ +]/)[0], position: i % 2 ? "insideBottomLeft" : "insideTopLeft", fontSize: 10, fill: "#DC2626" }} />
                   ))}
                 </ComposedChart>
               </ResponsiveContainer>
@@ -115,8 +116,10 @@ export default function Dashboard() {
             <Card>
               <CardTitle hint={`Climate TRACE ${bench.data.year}, ${n(bench.data.n_facilities)} Bangladeshi textile & garment facilities`}>Sector context</CardTitle>
               <p className="text-sm">
-                Annualised Scope 1 of <strong className="tabular">{t(bench.data.factory_scope1_tco2e_per_year)}</strong> is above{" "}
-                <strong className="tabular">{n(bench.data.factory_percentile, 0)}%</strong> of modelled facility estimates (median {t(bench.data.quantiles_tco2e.p50)}).
+                Annualised Scope 1 of <strong className="tabular">{t(bench.data.factory_scope1_tco2e_per_year)}</strong>{" "}
+                {(bench.data.factory_percentile ?? 0) >= 99.5
+                  ? <>is higher than every modelled facility estimate (median {t(bench.data.quantiles_tco2e.p50)}, 90th percentile {t(bench.data.quantiles_tco2e.p90)}).</>
+                  : <>is above <strong className="tabular">{n(bench.data.factory_percentile, 0)}%</strong> of modelled facility estimates (median {t(bench.data.quantiles_tco2e.p50)}).</>}
               </p>
               <p className="mt-2 text-xs text-slate">{bench.data.caveat}</p>
               <p className="mt-2 text-xs text-slate">

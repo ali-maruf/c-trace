@@ -104,8 +104,8 @@ export default function ReviewPage() {
                 {rec.activity ? ACTIVITY_LABEL[rec.activity] : "Unknown bill type"} · {rec.period ? monthLabel(rec.period) : "no period"}
               </CardTitle>
               <dl className="tabular grid grid-cols-2 gap-3 text-sm">
-                <div><dt className="text-slate">Consumption</dt><dd className="text-lg font-semibold">{n(rec.quantity)} {rec.unit}</dd></div>
-                <div><dt className="text-slate">Amount</dt><dd className="text-lg font-semibold">BDT {n(rec.amount_bdt, 2)}</dd></div>
+                <div className="min-w-0"><dt className="text-slate">Consumption</dt><dd className="break-words text-lg font-semibold">{n(rec.quantity)} {rec.unit}</dd></div>
+                <div className="min-w-0"><dt className="text-slate">Amount</dt><dd className="break-words text-lg font-semibold">BDT {n(rec.amount_bdt, 0)}</dd></div>
                 <div><dt className="text-slate">Bill no.</dt><dd>{rec.bill_no ?? "—"}</dd></div>
                 <div><dt className="text-slate">Supplier</dt><dd>{rec.supplier ?? "—"}</dd></div>
               </dl>

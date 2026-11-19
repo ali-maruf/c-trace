@@ -11,3 +11,4 @@ data/training_fleet*.csv
 data/storage/
 .secrets/
 data/cache/
+.claude/launch.json

@@ -361,3 +361,31 @@ BM25 plus TF-IDF uni- and bigrams, fused with reciprocal-rank fusion. It has sta
 domain-term map so Bangla questions reach the English guidance. `kb_chunks` mirrors the chunks, with the `vector(384)` column
 ready. The upgrade path is to compute embeddings at build time with an ONNX export and serve queries from a separate container.
 Guidance chunks remain C-Trace's own summaries with the source to consult; no standards text is copied.
+
+### D53. A monotonic solar constraint, found through the explanations
+The driver waterfall showed the unconstrained v2 model giving rooftop solar a *negative* grid contribution both in a month
+without panels and in a month with 600 kWp. That's a non-monotonic response no physics supports. HistGradientBoosting's
+`monotonic_cst` fixes it. Three constraint sets were evaluated on the same held-out factories:
+| Constraints | Gas / grid / diesel F1 | Small ÷ large false Lows | Release |
+|---|---|---|---|
+| none (previous v2) | 0.927 / 0.826 / 0.474 | 1.01× | — |
+| all physical signs (workers, wet, captive, solar, pieces, CDD) | 0.931 / 0.835 / 0.476 | 3.91× | fails fairness |
+| pieces, CDD, solar | 0.932 / 0.861 / 0.484 | 1.84× | fails fairness |
+| **solar only (released)** | **0.938 / 0.846 / 0.491** | **1.29×** | passes |
+The released model is better than both v1 and the unconstrained v2 on every carrier. Its clean-month false-Low rate is
+1.56% (vs 1.0% unconstrained), which the card reports.
+
+### D54. Self-calibration regimes are per carrier
+The prototype split every carrier's self-calibration at every intervention, so the three months between the boiler retrofit
+and the solar install calibrated *grid electricity* on two other months. That was noisy enough to flag February 2026.
+Each intervention now starts a new regime only for the carriers it affects (declared or inferred). Solar affects grid and
+diesel, plus gas when the factory has captive generation.
+
+### D55. The demo factory now lives in real weather
+The fictional demo bills had been generated with the Dhaka climatology, while C-Trace now scores with NASA POWER weather at
+the factory, so the demo data was slightly inconsistent with its own weather (March 2026 was cooler than climatology). The
+bills are regenerated with the real Gazipur series from the same random stream: production, outages, the 12% boiler saving,
+the 600 kWp solar and both planted errors are unchanged, and only cooling-driven use differs. The demo total moves from
+15,466.6 to 15,297.9 tCO2e. `pipeline.run` uses the factory's NASA POWER series by default whenever the profile has a
+location, so the prototype, the Streamlit fallback and the API see the same weather. Under this, v1 and v2 both flag exactly
+2025-09 and 2026-07.

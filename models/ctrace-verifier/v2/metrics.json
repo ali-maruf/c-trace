@@ -20,41 +20,41 @@
     "grid_kwh",
     "diesel_l"
   ],
-  "algorithm": "HistGradientBoostingRegressor (log1p target) + factory LOO-median calibration + IsolationForest + heteroscedastic scale σ(x) (quantile GBM) + split-conformal 90% band + group-Shapley drivers",
+  "algorithm": "HistGradientBoostingRegressor (log1p target) + factory LOO-median calibration + IsolationForest with a monotonic solar constraint + heteroscedastic scale σ(x) (quantile GBM) + split-conformal 90% band + group-Shapley drivers",
   "metrics": {
     "regression": {
       "gas_m3": {
-        "MAPE_fleet_model_new_factory": 0.2158,
-        "MAPE_after_factory_calibration": 0.0598,
-        "sigma_log_residual": 0.0676,
-        "band90_coverage": 0.8886,
+        "MAPE_fleet_model_new_factory": 0.2162,
+        "MAPE_after_factory_calibration": 0.0594,
+        "sigma_log_residual": 0.0656,
+        "band90_coverage": 0.885,
         "band90_halfwidth_pct": 12.0
       },
       "grid_kwh": {
-        "MAPE_fleet_model_new_factory": 0.3218,
-        "MAPE_after_factory_calibration": 0.0789,
-        "sigma_log_residual": 0.0936,
-        "band90_coverage": 0.9056,
-        "band90_halfwidth_pct": 18.6
+        "MAPE_fleet_model_new_factory": 0.3294,
+        "MAPE_after_factory_calibration": 0.0774,
+        "sigma_log_residual": 0.0902,
+        "band90_coverage": 0.8911,
+        "band90_halfwidth_pct": 18.5
       },
       "diesel_l": {
-        "MAPE_fleet_model_new_factory": 0.4641,
-        "MAPE_after_factory_calibration": 0.2711,
-        "sigma_log_residual": 0.3253,
-        "band90_coverage": 0.8986,
-        "band90_halfwidth_pct": 72.4
+        "MAPE_fleet_model_new_factory": 0.4623,
+        "MAPE_after_factory_calibration": 0.2698,
+        "sigma_log_residual": 0.3248,
+        "band90_coverage": 0.8946,
+        "band90_halfwidth_pct": 71.3
       }
     },
     "detection": {
       "gas_m3": {
-        "ROC_AUC": 0.9985,
-        "precision@low": 0.8863,
-        "recall@low": 0.9717,
-        "F1@low": 0.927,
+        "ROC_AUC": 0.9991,
+        "precision@low": 0.8987,
+        "recall@low": 0.9802,
+        "F1@low": 0.9377,
         "low_threshold": 3.0,
-        "precision@z3": 0.8863,
-        "recall@z3": 0.9717,
-        "F1@z3": 0.927,
+        "precision@z3": 0.8987,
+        "recall@z3": 0.9802,
+        "F1@z3": 0.9377,
         "naive_MoM_rule_precision": 0.2734,
         "naive_MoM_rule_recall": 0.7932,
         "naive_MoM_rule_F1": 0.4067,
@@ -62,48 +62,48 @@
           "under_reporting (×0.4–0.7)": 0.978,
           "unit_error (×1000 or ÷1000)": 1.0,
           "double_count (×2)": 0.989,
-          "over_reporting (×1.4–1.8)": 0.916
+          "over_reporting (×1.4–1.8)": 0.952
         },
         "n_injected": 353,
         "n_rows": 7200
       },
       "grid_kwh": {
-        "ROC_AUC": 0.9906,
-        "precision@low": 0.9355,
-        "recall@low": 0.7394,
-        "F1@low": 0.8259,
+        "ROC_AUC": 0.9939,
+        "precision@low": 0.8288,
+        "recall@low": 0.864,
+        "F1@low": 0.846,
         "low_threshold": 3.0,
-        "precision@z3": 0.9355,
-        "recall@z3": 0.7394,
-        "F1@z3": 0.8259,
+        "precision@z3": 0.8288,
+        "recall@z3": 0.864,
+        "F1@z3": 0.846,
         "naive_MoM_rule_precision": 0.4047,
         "naive_MoM_rule_recall": 0.8357,
         "naive_MoM_rule_F1": 0.5453,
         "recall_by_anomaly_type": {
-          "under_reporting (×0.4–0.7)": 0.658,
+          "under_reporting (×0.4–0.7)": 0.776,
           "unit_error (×1000 or ÷1000)": 1.0,
-          "double_count (×2)": 0.87,
-          "over_reporting (×1.4–1.8)": 0.419
+          "double_count (×2)": 0.946,
+          "over_reporting (×1.4–1.8)": 0.72
         },
         "n_injected": 353,
         "n_rows": 7200
       },
       "diesel_l": {
-        "ROC_AUC": 0.865,
-        "precision@low": 0.9664,
-        "recall@low": 0.3142,
-        "F1@low": 0.4742,
+        "ROC_AUC": 0.8647,
+        "precision@low": 0.9528,
+        "recall@low": 0.3306,
+        "F1@low": 0.4909,
         "low_threshold": 5.0,
-        "precision@z3": 0.4625,
-        "recall@z3": 0.5902,
-        "F1@z3": 0.5186,
+        "precision@z3": 0.428,
+        "recall@z3": 0.5683,
+        "F1@z3": 0.4883,
         "naive_MoM_rule_precision": 0.0762,
         "naive_MoM_rule_recall": 0.7705,
         "naive_MoM_rule_F1": 0.1386,
         "recall_by_anomaly_type": {
-          "under_reporting (×0.4–0.7)": 0.109,
+          "under_reporting (×0.4–0.7)": 0.152,
           "unit_error (×1000 or ÷1000)": 1.0,
-          "double_count (×2)": 0.048,
+          "double_count (×2)": 0.071,
           "over_reporting (×1.4–1.8)": 0.022
         },
         "n_injected": 366,
@@ -112,40 +112,40 @@
     },
     "fairness": {
       "before_fix": {
-        "overall": 0.0469,
+        "overall": 0.0492,
         "by_size": {
           "small": {
-            "rate": 0.075,
+            "rate": 0.0773,
             "n_months": 2160
           },
           "medium": {
-            "rate": 0.0408,
+            "rate": 0.0417,
             "n_months": 2304
           },
           "large": {
-            "rate": 0.03,
+            "rate": 0.0333,
             "n_months": 2736
           }
         },
         "by_type": {
           "denim_wash": {
-            "rate": 0.0234,
+            "rate": 0.0286,
             "n_months": 1152
           },
           "knit_composite": {
-            "rate": 0.0248,
+            "rate": 0.0205,
             "n_months": 3024
           },
           "sweater": {
-            "rate": 0.0625,
+            "rate": 0.0702,
             "n_months": 912
           },
           "woven": {
-            "rate": 0.0848,
+            "rate": 0.0923,
             "n_months": 2112
           }
         },
-        "small_to_large_ratio": 2.5,
+        "small_to_large_ratio": 2.321,
         "worker_tercile_edges": [
           1838,
           2988
@@ -154,40 +154,40 @@
       "fix_applied": true,
       "method": "heteroscedastic, rate-controlled scale: σ(x) = shape(x) × k, shape = quantile-GBM (q = 0.9) of |residual| from 4-fold out-of-fold residuals of the training factories, k set on calibration factories per factory type (Mondrian) so that a set share of clean months reach the Low threshold: gas_m3 0.5%, grid_kwh 0.5%, diesel_l 0.1%",
       "after_fix": {
-        "overall": 0.01,
+        "overall": 0.0156,
         "by_size": {
           "small": {
-            "rate": 0.0125,
+            "rate": 0.0208,
             "n_months": 2160
           },
           "medium": {
-            "rate": 0.0048,
+            "rate": 0.01,
             "n_months": 2304
           },
           "large": {
-            "rate": 0.0124,
+            "rate": 0.0161,
             "n_months": 2736
           }
         },
         "by_type": {
           "denim_wash": {
-            "rate": 0.0009,
+            "rate": 0.0052,
             "n_months": 1152
           },
           "knit_composite": {
-            "rate": 0.0046,
+            "rate": 0.0149,
             "n_months": 3024
           },
           "sweater": {
-            "rate": 0.0318,
+            "rate": 0.0296,
             "n_months": 912
           },
           "woven": {
-            "rate": 0.0133,
+            "rate": 0.0161,
             "n_months": 2112
           }
         },
-        "small_to_large_ratio": 1.008,
+        "small_to_large_ratio": 1.292,
         "worker_tercile_edges": [
           1838,
           2988
@@ -242,13 +242,13 @@
   "n_cal_factories": 90,
   "n_test_factories": 150,
   "drift_baseline_sigma": {
-    "gas_m3": 0.06763,
-    "grid_kwh": 0.09364,
-    "diesel_l": 0.32535
+    "gas_m3": 0.06559,
+    "grid_kwh": 0.09018,
+    "diesel_l": 0.3248
   },
   "drift_baseline_z": {
-    "gas_m3": 0.7291,
-    "grid_kwh": 0.5474,
-    "diesel_l": 1.4007
+    "gas_m3": 0.709,
+    "grid_kwh": 0.7217,
+    "diesel_l": 1.4273
   }
 }

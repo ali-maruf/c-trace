@@ -125,21 +125,28 @@ class Verifier:
             res[i] = np.median(others) if len(others) >= min_others else 0.0
         return pd.Series(res, index=s.index)
 
-    def score_factory(self, df: pd.DataFrame, breakpoints: list[str] | None = None, explain: bool = False) -> pd.DataFrame:
+    def score_factory(self, df: pd.DataFrame, breakpoints: list[str] | dict[str, list[str]] | None = None,
+                      explain: bool = False) -> pd.DataFrame:
         """df: one factory's monthly table with profile columns + gas_m3, grid_kwh, diesel_l.
-        breakpoints: periods (YYYY-MM) where a declared intervention starts a new operating regime.
+        breakpoints: periods (YYYY-MM) where a declared intervention starts a new operating regime — one list for all
+        carriers, or per carrier ({"gas_m3": [...], ...}) so a boiler retrofit only re-baselines gas.
         explain: add per-month driver contributions (`drivers_<target>`), see `explain`."""
         df = df.sort_values("period").copy()
-        segments = df["period"].map(lambda p: sum(p >= b for b in (breakpoints or [])))
+
+        def seg(bps: list[str]) -> pd.Series:
+            return df["period"].map(lambda p: sum(p >= b for b in bps))
+
+        by_target = breakpoints if isinstance(breakpoints, dict) else {t: list(breakpoints or []) for t in self.models}
+        segments_of = {t: seg(by_target.get(t, [])) for t in self.models}
         r = self.residuals(df)
         out = df[["period"]].copy()
-        out["regime"] = segments.values
+        out["regime"] = seg(sorted({b for v in by_target.values() for b in v})).values
         X = make_features(df)
         q = getattr(self, "conformal_q", None) or {}
         scaled = bool(getattr(self, "scale_models", None))
         zcols, calibs = [], {}
         for tgt in self.models:
-            calib = self.loo_median(r[f"resid_{tgt}"], segments)
+            calib = self.loo_median(r[f"resid_{tgt}"], segments_of[tgt])
             calibs[tgt] = calib
             centre = r[f"pred_{tgt}"] + calib
             sig = self.sigma_rows(tgt, X)

@@ -35,7 +35,8 @@ def factory_profile(conn: Conn, factory_id: str) -> dict:
         "name": f["name"], "location": f.get("location"), "factory_type": f["factory_type"], "workers": int(f["workers"]),
         "has_wet_processing": int(bool(f["has_wet_processing"])), "captive_gas_gen": int(bool(f["captive_gas_gen"])),
         "solar": [{"from": a["from_period"], "kwp": float(a["capacity"])} for a in f["assets"] if a["kind"] == "solar"],
-        "interventions": [{"from": i["from_period"], "measure": i["measure"], "id": i["id"]} for i in f["interventions"]],
+        "interventions": [{"from": i["from_period"], "measure": i["measure"], "id": i["id"], "affects": i.get("affects") or []}
+                          for i in f["interventions"]],
     }
 
 

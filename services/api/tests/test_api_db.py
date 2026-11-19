@@ -483,7 +483,7 @@ def test_reduction_proof_sign_off_and_certificate(client, owner_conn, token):
 
 
 # ------------------------------------------------------------------ live demo sandboxes, onboarding, inline jobs
-def test_demo_sandbox_is_private_and_contained(client, owner_conn, demo, monkeypatch):
+def test_demo_sandbox_is_private_and_contained(client, owner_conn, demo, token, monkeypatch):
     r = client.post("/v1/demo/start")
     assert r.status_code == 200, r.text
     d = r.json()
@@ -491,7 +491,8 @@ def test_demo_sandbox_is_private_and_contained(client, owner_conn, demo, monkeyp
     me = client.get("/v1/me", headers=h).json()
     assert me["org_id"] == d["org_id"] and me["role"] == "owner"
     t = client.get(f"/v1/factories/{d['factory_id']}/summary", headers=h).json()["totals"]
-    assert t["total_tco2e"] == pytest.approx(15466.6004, abs=1e-3)          # same fictional data as the seed
+    seeded = client.get(f"/v1/factories/{demo['factory_id']}/summary", headers=auth(token(demo["user_id"]))).json()["totals"]
+    assert t["total_tco2e"] == pytest.approx(seeded["total_tco2e"], abs=1e-6)  # same fictional data as the seed
     second = client.post("/v1/demo/start").json()
     assert second["org_id"] != d["org_id"]                                 # every visitor gets their own sandbox
     assert client.get(f"/v1/factories/{second['factory_id']}", headers=h).status_code == 404

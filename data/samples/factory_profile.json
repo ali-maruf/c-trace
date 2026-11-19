@@ -5,6 +5,8 @@
   "factory_type": "knit_composite",
   "workers": 3200,
   "has_wet_processing": 1,
+  "lat": 24.0,
+  "lon": 90.42,
   "captive_gas_gen": 1,
   "solar": [
     {

@@ -224,3 +224,50 @@ export interface Benchmark {
 }
 
 export interface WeatherMonth { period: string; t2m_c: number; cdd: number; source: string }
+
+export interface ReportFacts {
+  factory: string;
+  location: string | null;
+  period_from: string;
+  period_to: string;
+  months: number;
+  scope1_tco2e: number;
+  scope2_location_tco2e: number;
+  total_tco2e: number;
+  pieces: number | null;
+  kgco2e_per_piece: number | null;
+  energy_by_source: Record<string, { quantity: number; unit: string; tco2e: number }>;
+  documents: number;
+  factors: string[];
+  confidence_months?: Partial<Record<Confidence, number>>;
+  flagged_months?: { period: string; confidence: Confidence; reasons: string[] }[];
+  verified_reductions?: { activity: Activity; avoided_tco2e: number; low: number; high: number; verified: boolean }[];
+  data_quality?: { records_by_status: Record<string, number>; human_reviewed_share: number | null; verification_model: string | null };
+  scope2_statutory_tco2e?: number;
+}
+
+export interface Report {
+  id: string;
+  factory_id: string;
+  format: "buyer" | "ifrs_s2" | "bsec";
+  title: string;
+  period_from: string;
+  period_to: string;
+  narrative: string;
+  method: string;
+  facts: ReportFacts & { _guidance?: { title: string; source: string; score: number }[] };
+  created_at: string;
+  expires_at: string | null;
+  revoked_at: string | null;
+  include_documents: boolean;
+  shared: boolean;
+}
+
+export interface CopilotAnswer {
+  text: string;
+  language: "en" | "bn";
+  citations: { type: "trace" | "kb" | "reduction" | "verification" | "summary"; id: string; label: string }[];
+  tool_calls: { tool: string; args: Record<string, unknown> }[];
+  method: string;
+  declined: boolean;
+}

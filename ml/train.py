@@ -38,8 +38,8 @@ ANOMALY_TYPES = {
     "over_reporting (×1.4–1.8)": lambda v, r: v * r.uniform(1.4, 1.8),
 }
 VERSIONS = {
-    "v1": {"real_weather": False, "start": "2023-01", "end": "2025-12", "conformal": False, "fairness_fix": False},
-    "v2": {"real_weather": True, "start": "2022-01", "end": "2025-12", "conformal": True, "fairness_fix": True},
+    "v1": {"real_weather": False, "start": "2023-01", "end": "2025-12", "conformal": False, "fairness_fix": False, "monotonic": False},
+    "v2": {"real_weather": True, "start": "2022-01", "end": "2025-12", "conformal": True, "fairness_fix": True, "monotonic": True},
 }
 ALPHA = 0.10            # conformal: 90% expected band
 # v2: target share of clean months the model grades Low, per carrier. Diesel is advisory by policy (config.Z_THRESHOLDS):
@@ -114,21 +114,34 @@ def fit_scale_models(df: pd.DataFrame, res: pd.DataFrame, seed: int) -> dict:
     return out
 
 
-def new_regressor(seed: int) -> HistGradientBoostingRegressor:
+# Physics-informed monotonic constraint (v2), in FEATURES order:
+# type_code, log_workers, has_wet_processing, captive_gas_gen, solar_kwp, log_pieces, month_sin, month_cos, cdd.
+# More rooftop solar can never raise expected gas, grid or diesel use (-1). The unconstrained model learned a non-monotonic
+# solar response, visible in the driver waterfall. Wider constraint sets were evaluated and rejected because they fail
+# the fairness rule (DECISIONS D53): production/CDD/solar → small÷large 1.84×; all physical signs → 3.9×.
+MONOTONIC = {
+    "gas_m3":   [0, 0, 0, 0, -1, 0, 0, 0, 0],
+    "grid_kwh": [0, 0, 0, 0, -1, 0, 0, 0, 0],
+    "diesel_l": [0, 0, 0, 0, -1, 0, 0, 0, 0],
+}
+
+
+def new_regressor(seed: int, target: str | None = None, monotonic: bool = False) -> HistGradientBoostingRegressor:
     return HistGradientBoostingRegressor(
         max_iter=600, learning_rate=0.05, max_leaf_nodes=31, min_samples_leaf=30,
         l2_regularization=1.0, categorical_features=[FEATURES.index("type_code")],
+        monotonic_cst=MONOTONIC[target] if monotonic and target else None,
         early_stopping=True, validation_fraction=0.15, random_state=seed,
     )
 
 
-def oof_residuals(fit: pd.DataFrame, seed: int, folds: int = 4) -> pd.DataFrame:
+def oof_residuals(fit: pd.DataFrame, seed: int, folds: int = 4, monotonic: bool = False) -> pd.DataFrame:
     """Out-of-fold calibrated residuals for every training factory (cross-fitting), so the scale model learns
     residual spread from models that never saw those factories."""
     res = pd.DataFrame(index=fit.index, columns=TARGETS, dtype=float)
     for tr, ho in GroupKFold(n_splits=folds).split(fit, groups=fit["factory_id"]):
         a, b = fit.iloc[tr], fit.iloc[ho]
-        models = {t: new_regressor(seed).fit(make_features(a), np.log1p(a[t])) for t in TARGETS}
+        models = {t: new_regressor(seed, t, monotonic).fit(make_features(a), np.log1p(a[t])) for t in TARGETS}
         fold = Verifier(models=models, sigma={}, iso=None, iso_threshold=0.0, meta={})
         res.iloc[ho] = calibrated_residuals(fold, b.reset_index(drop=True)).to_numpy()
     return res
@@ -264,7 +277,7 @@ def main(argv=None):
     models, metrics = {}, {"regression": {}, "detection": {}}
     X_fit = make_features(fit)
     for tgt in TARGETS:
-        models[tgt] = new_regressor(args.seed).fit(X_fit, np.log1p(fit[tgt]))
+        models[tgt] = new_regressor(args.seed, tgt, spec["monotonic"]).fit(X_fit, np.log1p(fit[tgt]))
     v = Verifier(models=models, sigma={}, iso=None, iso_threshold=0.0, meta={}, version=args.version)
 
     # ---- 2. calibrate residual spread (and the conformal band) on unseen calibration factories
@@ -284,7 +297,7 @@ def main(argv=None):
     if spec["fairness_fix"]:
         # v2 calibration, always applied: scale shape from out-of-fold residuals of the training factories,
         # clean-month Low rate set on the calibration factories (which neither the models nor the shape saw)
-        v.scale_models = fit_scale_models(fit, oof_residuals(fit, args.seed), args.seed)
+        v.scale_models = fit_scale_models(fit, oof_residuals(fit, args.seed, monotonic=spec["monotonic"]), args.seed)
         v.scale_k = flag_multipliers(v, cal, cal_res)
         fair.update(fix_applied=True,
                     method=("heteroscedastic, rate-controlled scale: σ(x) = shape(x) × k, shape = quantile-GBM (q = 0.9) of "
@@ -330,7 +343,8 @@ def main(argv=None):
         "brand": "C-Trace", "model": f"C-Trace Verifier {args.version}", "version": args.version, "trained_on": data_source,
         "trained_date": date.today().isoformat(), "features": FEATURES, "targets": TARGETS,
         "algorithm": ("HistGradientBoostingRegressor (log1p target) + factory LOO-median calibration + IsolationForest"
-                      + (" + heteroscedastic scale σ(x) (quantile GBM) + split-conformal 90% band + group-Shapley drivers" if spec["conformal"] else "")),
+                      + (" with a monotonic solar constraint + heteroscedastic scale σ(x) (quantile GBM) + split-conformal 90% band"
+                         " + group-Shapley drivers" if spec["conformal"] else "")),
         "metrics": metrics, "z_warn": config.Z_WARN, "z_flag": config.Z_FLAG, "z_thresholds": config.Z_THRESHOLDS,
         "n_train_factories": int(fit.factory_id.nunique()), "n_cal_factories": int(cal.factory_id.nunique()),
         "n_test_factories": int(test.factory_id.nunique()),

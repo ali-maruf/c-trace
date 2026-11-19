@@ -13,6 +13,23 @@ from .verify import Verifier, grade_months
 TARGET_OF = {"natural_gas": "gas_m3", "grid_electricity": "grid_kwh", "diesel": "diesel_l"}
 
 
+def carrier_breakpoints(profile: dict) -> dict[str, list[str]]:
+    """Regime starts per carrier: an intervention re-baselines only the carriers it affects (declared `affects`, else
+    inferred from its description). Solar changes grid and diesel use, and captive-generation gas when there is one."""
+    from .reduction import infer_affects
+
+    out: dict[str, set[str]] = {t: set() for t in TARGET_OF.values()}
+    for iv in profile.get("interventions", []):
+        for act in iv.get("affects") or infer_affects(iv["measure"]):
+            out[TARGET_OF[act]].add(iv["from"])
+    for s in profile.get("solar", []):
+        out["grid_kwh"].add(s["from"])
+        out["diesel_l"].add(s["from"])
+        if profile.get("captive_gas_gen"):
+            out["gas_m3"].add(s["from"])
+    return {t: sorted(v) for t, v in out.items()}
+
+
 def solar_kwp_for(profile: dict, period: str) -> float:
     kwp = 0.0
     for s in profile.get("solar", []):
@@ -61,6 +78,9 @@ def run(records: pd.DataFrame, production: pd.DataFrame, profile: dict, verifier
         monthly[col] = monthly.period.map(q[a]) if a in q else np.nan
     monthly = monthly.merge(production[["period", "pieces"]], on="period", how="left")
     monthly["month"] = monthly.period.str[5:7].astype(int)
+    if weather is None and profile.get("lat") is not None and profile.get("lon") is not None:
+        from .weather import monthly as weather_monthly  # NASA POWER at the factory, labelled climatology where missing
+        weather = weather_monthly(float(profile["lat"]), float(profile["lon"]), all_periods)
     real_cdd = dict(zip(weather.period, weather.cdd, strict=True)) if weather is not None else {}
     monthly["cdd"] = monthly.period.map(lambda p: real_cdd.get(p, cdd(p)))
     monthly["factory_type"] = profile["factory_type"]
@@ -73,8 +93,7 @@ def run(records: pd.DataFrame, production: pd.DataFrame, profile: dict, verifier
     graded = None
     if verifier is not None:
         scorable = monthly.dropna(subset=["pieces"])
-        breakpoints = sorted({i["from"] for i in profile.get("interventions", [])} |
-                             {s["from"] for s in profile.get("solar", [])})
+        breakpoints = carrier_breakpoints(profile)
         graded = grade_months(verifier.score_factory(scorable, breakpoints, explain=explain), issues)
     return {"ledger": ledger, "summary": summary, "monthly": monthly, "issues": issues,
             "verification": graded, "suggestions": tariff_corrections(records)}
