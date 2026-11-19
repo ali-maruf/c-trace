@@ -736,8 +736,11 @@ def test_confirm_clean_leaves_flagged_bills(client, owner_conn, token):
     assert [x["doc_name"] for x in left] == ["2025-09_natural_gas.pdf"]
 
 
-def test_concurrent_demo_sandboxes_each_get_all_their_bills(client):
+def test_concurrent_demo_sandboxes_each_get_all_their_bills(client, monkeypatch):
     from concurrent.futures import ThreadPoolExecutor
+
+    from ctrace_api import ratelimit, v1
+    monkeypatch.setattr(v1, "_demo_limiter", ratelimit.SlidingWindowPerHour(100))   # the per-IP limit is tested separately
     with ThreadPoolExecutor(4) as ex:
         responses = list(ex.map(lambda _: client.post("/v1/demo/start"), range(8)))
     assert [r.status_code for r in responses] == [200] * 8
@@ -745,3 +748,11 @@ def test_concurrent_demo_sandboxes_each_get_all_their_bills(client):
     for d in starts:
         s = client.get(f"/v1/factories/{d['factory_id']}/summary", headers={"Authorization": f"Bearer {d['token']}"}).json()
         assert s["data_status"]["documents"] == 65 and sum(s["data_status"]["records_by_status"].values()) == 65
+
+
+
+def test_demo_start_is_rate_limited_per_client(client, monkeypatch):
+    from ctrace_api import ratelimit, v1
+    monkeypatch.setattr(v1, "_demo_limiter", ratelimit.SlidingWindowPerHour(2))
+    codes = [client.post("/v1/demo/start").status_code for _ in range(3)]
+    assert codes == [200, 200, 429]
