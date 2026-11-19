@@ -18,14 +18,17 @@ METHOD_ORDER = ["rules", "haiku", "sonnet", "cascade"]
 FIELDS = ["activity", "period", "quantity", "unit", "amount_bdt", "bill_no"]
 
 
+NAMES = {"gas_m3": "Natural gas", "grid_kwh": "Grid electricity", "diesel_l": "Diesel"}
+HEADER = ["# C-Trace Model Card", "",
+          "Two learned components: the **C-Trace Verifier** (is each month's energy plausible?) and **document "
+          "extraction** (what does the bill say?). Neither produces an emissions number.", ""]
+
+
 def verifier_section(meta: dict) -> list[str]:
     reg, det = meta["metrics"]["regression"], meta["metrics"]["detection"]
-    names = {"gas_m3": "Natural gas", "grid_kwh": "Grid electricity", "diesel_l": "Diesel"}
+    names = NAMES
     lines = [
-        "# C-Trace Model Card", "",
-        "Two learned components: the **C-Trace Verifier** (is each month's energy plausible?) and **document "
-        "extraction** (what does the bill say?). Neither produces an emissions number.", "",
-        "## C-Trace Verifier v1", "",
+        f"## {meta.get('model', 'C-Trace Verifier v1')}", "",
         f"*Trained {meta['trained_date']} on {meta['trained_on']}.*", "",
         "### What it does",
         "Predicts how much natural gas, grid electricity and diesel a garment factory *should* have used in a month, "
@@ -40,10 +43,16 @@ def verifier_section(meta: dict) -> list[str]:
     ]
     for t, m in reg.items():
         lines.append(f"| {names[t]} | {m['MAPE_fleet_model_new_factory']:.1%} | {m['MAPE_after_factory_calibration']:.1%} | {m['sigma_log_residual']:.3f} |")
-    lines += ["", "### Error detection (5% injected errors, held-out factories)", "",
+    if any("band90_coverage" in m for m in reg.values()):
+        lines += ["", "Expected band (split-conformal, target 90%, calibrated on factories not used for training), on held-out factories:", "",
+                  "| Energy carrier | Coverage | Half-width (≈ ±%) |", "|---|---|---|"]
+        lines += [f"| {names[t]} | {m['band90_coverage']:.1%} | ±{m['band90_halfwidth_pct']:.0f}% |" for t, m in reg.items()]
+    at = "low" if all("F1@low" in m for m in det.values()) else "z3"
+    where = "at the Low threshold the app uses (|z| ≥ 3 gas/grid, ≥ 5 diesel)" if at == "low" else "at |z| ≥ 3"
+    lines += ["", f"### Error detection (5% injected errors, held-out factories, {where})", "",
               "| Energy carrier | ROC-AUC | Precision | Recall | F1 | Naive month-over-month rule F1 |", "|---|---|---|---|---|---|"]
     for t, m in det.items():
-        lines.append(f"| {names[t]} | {m['ROC_AUC']:.3f} | {m['precision@z3']:.1%} | {m['recall@z3']:.1%} | {m['F1@z3']:.1%} | {m['naive_MoM_rule_F1']:.1%} |")
+        lines.append(f"| {names[t]} | {m['ROC_AUC']:.3f} | {m[f'precision@{at}']:.1%} | {m[f'recall@{at}']:.1%} | {m[f'F1@{at}']:.1%} | {m['naive_MoM_rule_F1']:.1%} |")
     lines += ["", "Grading used in the app: gas and grid electricity → Medium at |z| ≥ 2.5, Low at |z| ≥ 3; "
               "diesel → Medium at |z| ≥ 3, Low at |z| ≥ 5 (diesel depends on unobserved grid outages). "
               "Document checks (implied tariff, missing or duplicate bills) can also set a month to Low.",
@@ -51,6 +60,43 @@ def verifier_section(meta: dict) -> list[str]:
     for t, m in det.items():
         kinds = ", ".join(f"{k}: {v:.0%}" for k, v in m["recall_by_anomaly_type"].items())
         lines.append(f"- **{names[t]}** — {kinds}")
+    comp = meta["metrics"].get("comparison_v1_same_test")
+    if comp:
+        lines += ["", f"### {meta['version']} vs v1 on the same held-out factories (same injected errors)", "",
+                  f"| Energy carrier | ROC-AUC v1 → {meta['version']} | F1 v1 → {meta['version']} |", "|---|---|---|"]
+        lines += [f"| {names[t]} | {comp[t]['ROC_AUC']:.3f} → {det[t]['ROC_AUC']:.3f} | {comp[t]['F1@low']:.1%} → {det[t]['F1@low']:.1%} |"
+                  for t in det]
+    fair = meta["metrics"].get("fairness")
+    if fair:
+        def row(label: str, f: dict) -> str:
+            s = f["by_size"]
+            r = f["small_to_large_ratio"]
+            return (f"| {label} | {s['small']['rate']:.2%} | {s['medium']['rate']:.2%} | {s['large']['rate']:.2%} | "
+                    f"{'—' if r is None else f'{r:.2f}×'} |")
+        e = fair["before_fix"]["worker_tercile_edges"]
+        lines += ["", "### Fairness: false-flag rate on clean held-out months", "",
+                  f"Share of months with no injected error that the model alone would grade **Low**, by factory size "
+                  f"(worker terciles: small ≤ {e[0]:,}, medium ≤ {e[1]:,}, large > {e[1]:,}). Release rule: small "
+                  f"factories must not be flagged more than {fair['threshold_ratio']}× as often as large ones.", "",
+                  "| Calibration | Small | Medium | Large | Small ÷ large |", "|---|---|---|---|---|",
+                  row("Global σ", fair["before_fix"])]
+        if fair.get("fix_applied"):
+            lines.append(row("Heteroscedastic, rate-controlled σ(x) (released)", fair["after_fix"]))
+        final = fair.get("after_fix", fair["before_fix"])
+        lines += ["", "| Factory type | False-flag rate | Months |", "|---|---|---|"]
+        lines += [f"| {k.replace('_', ' ')} | {v['rate']:.2%} | {v['n_months']:,} |" for k, v in final["by_type"].items()]
+        lines += ["", f"Result: **{'passes' if fair['passes'] else 'FAILS'}** the release rule"
+                  + (f" after the fix ({fair['method']})." if fair.get("fix_applied") else " without any calibration change.")]
+        worse = [k.replace("_", " ") for k, v in final["by_type"].items() if v["rate"] > 2 * max(final["overall"], 1e-9)]
+        if worse:
+            lines.append(f"\nStill to fix: **{', '.join(worse)}** factories are flagged more than twice as often as the fleet "
+                         f"({final['overall']:.2%}). The per-type calibration uses the pooled multiplier where a type has "
+                         "too few calibration months; more pilot data for these types is the fix, not a looser threshold.")
+    if meta.get("drift_baseline_sigma"):
+        lines += ["", "### Monitoring",
+                  "A weekly job compares the spread of recent calibrated residuals (all factories' latest verification runs) "
+                  "with the training σ per carrier and raises an alert when it moves by more than 30%: "
+                  + ", ".join(f"{names[t]} σ₀ = {s:.3f}" for t, s in meta["drift_baseline_sigma"].items()) + "."]
     lines += [
         "", "### Limitations — read before quoting these numbers",
         "- **Training data is simulated.** Bangladesh has no open factory-level monthly energy dataset. The C-Trace "
@@ -111,9 +157,19 @@ def extraction_section(results_dir: Path = RESULTS_DIR) -> list[str]:
     return lines
 
 
+def write_version_card(version: str) -> Path:
+    """models/ctrace-verifier/<version>/MODEL_CARD.md: that version's Verifier section only."""
+    meta = json.loads((config.verifier_dir(version) / "metrics.json").read_text())
+    out = config.verifier_dir(version) / "MODEL_CARD.md"
+    out.write_text("\n".join([f"# {meta.get('model', 'C-Trace Verifier ' + version)} — Model Card", ""]
+                             + verifier_section(meta)[2:]) + "\n", encoding="utf-8")
+    return out
+
+
 def write_model_card() -> Path:
-    meta = json.loads((config.MODELS_DIR / "metrics.json").read_text())
-    lines = verifier_section(meta) + extraction_section()
+    """models/MODEL_CARD.md: the pinned Verifier version plus the extraction eval."""
+    meta = json.loads((config.verifier_dir() / "metrics.json").read_text())
+    lines = HEADER + verifier_section(meta) + extraction_section()
     out = config.MODELS_DIR / "MODEL_CARD.md"
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return out

@@ -11,6 +11,7 @@ Product: **C-Trace — Trace every tonne.** Verifiable carbon MRV for Bangladesh
 - LLM text must pass `number_guard` before it reaches a user or a PDF.
 - Simulated data is labelled simulated; the demo factory is fictional.
 - No placeholder features, fake data in the UI, empty scaffolding or invented API endpoints. Check the docs first.
+- Never ship a Verifier version that fails the fairness rule or does worse than the previous version on the same test (see `test_verifier_v2.py`).
 - Never regress `make test`. The demo factory must flag exactly 2025-09 (dropped-digit gas bill) and 2026-07 (missing diesel).
 - Model IDs live in config / env vars, never in business logic.
 - Store functions run inside `org_tx` (role `ctrace_app`, RLS on). Never compute emissions in SQL; never bypass RLS for user requests.
@@ -29,7 +30,7 @@ Product: **C-Trace — Trace every tonne.** Verifiable carbon MRV for Bangladesh
 
 ## Commands (uv workspace, Python 3.12, versions pinned in `uv.lock`)
 - `make setup` — install everything from the lockfile
-- `make train` — train the C-Trace Verifier and regenerate `models/MODEL_CARD.md`
+- `make train` — train the C-Trace Verifier (v2 by default; `--version v1` reproduces v1) into `models/ctrace-verifier/<v>/` and regenerate the model card
 - `make test` / `make lint` / `make typecheck` / `make check` (all three, same as CI)
 - `make demo` — seed the fictional demo factory into Postgres · `make api` (:8000/docs) · `make worker` · `make dev-token`
 - Local Postgres needs no Docker: pgserver in `.pgdata/` (`make db-start`/`db-stop`); `DATABASE_URL` overrides

@@ -2,15 +2,15 @@
 
 Two learned components: the **C-Trace Verifier** (is each month's energy plausible?) and **document extraction** (what does the bill say?). Neither produces an emissions number.
 
-## C-Trace Verifier v1
+## C-Trace Verifier v2
 
-*Trained 2026-11-20 on C-Trace simulator v1 (600 factories × 36 months, seed 42).*
+*Trained 2026-11-20 on C-Trace simulator (600 factories × 48 months, 2022-01…2025-12, seed 42; weather: NASA POWER monthly T2M at Gazipur / Savar (24.0, 90.5), Dhaka / Narayanganj (23.5, 90.5), Chattogram (22.5, 92.0), Mymensingh / Bhaluka (24.5, 90.5)).*
 
 ### What it does
 Predicts how much natural gas, grid electricity and diesel a garment factory *should* have used in a month, given its production, type, assets and weather. C-Trace compares that to what the bills say and flags months that don't add up. It does **not** calculate emissions — that is deterministic code with IPCC/Ember factors.
 
 ### Algorithm
-HistGradientBoostingRegressor (log1p target) + factory LOO-median calibration + IsolationForest.
+HistGradientBoostingRegressor (log1p target) + factory LOO-median calibration + IsolationForest + heteroscedastic scale σ(x) (quantile GBM) + split-conformal 90% band + group-Shapley drivers.
 
 Features: `type_code, log_workers, has_wet_processing, captive_gas_gen, solar_kwp, log_pieces, month_sin, month_cos, cdd`
 
@@ -20,25 +20,64 @@ Factories — train: 360, calibration: 90, held-out test: 150 (split by factory,
 
 | Energy carrier | MAPE, new factory | MAPE after self-calibration | σ (log residual) |
 |---|---|---|---|
-| Natural gas | 26.1% | 5.8% | 0.066 |
-| Grid electricity | 31.4% | 7.9% | 0.088 |
-| Diesel | 43.0% | 27.3% | 0.321 |
+| Natural gas | 21.6% | 6.0% | 0.068 |
+| Grid electricity | 32.2% | 7.9% | 0.094 |
+| Diesel | 46.4% | 27.1% | 0.325 |
 
-### Error detection (5% injected errors, held-out factories)
+Expected band (split-conformal, target 90%, calibrated on factories not used for training), on held-out factories:
+
+| Energy carrier | Coverage | Half-width (≈ ±%) |
+|---|---|---|
+| Natural gas | 88.9% | ±12% |
+| Grid electricity | 90.6% | ±19% |
+| Diesel | 89.9% | ±72% |
+
+### Error detection (5% injected errors, held-out factories, at the Low threshold the app uses (|z| ≥ 3 gas/grid, ≥ 5 diesel))
 
 | Energy carrier | ROC-AUC | Precision | Recall | F1 | Naive month-over-month rule F1 |
 |---|---|---|---|---|---|
-| Natural gas | 0.999 | 72.8% | 99.6% | 84.1% | 44.4% |
-| Grid electricity | 0.997 | 62.9% | 99.6% | 77.1% | 51.3% |
-| Diesel | 0.858 | 82.5% | 36.4% | 50.5% | 13.4% |
+| Natural gas | 0.999 | 88.6% | 97.2% | 92.7% | 40.7% |
+| Grid electricity | 0.991 | 93.5% | 73.9% | 82.6% | 54.5% |
+| Diesel | 0.865 | 96.6% | 31.4% | 47.4% | 13.9% |
 
 Grading used in the app: gas and grid electricity → Medium at |z| ≥ 2.5, Low at |z| ≥ 3; diesel → Medium at |z| ≥ 3, Low at |z| ≥ 5 (diesel depends on unobserved grid outages). Document checks (implied tariff, missing or duplicate bills) can also set a month to Low.
 
 Recall by error type:
 
-- **Natural gas** — under_reporting (×0.4–0.7): 100%, unit_error (×1000 or ÷1000): 100%, double_count (×2): 100%, over_reporting (×1.4–1.8): 98%
-- **Grid electricity** — under_reporting (×0.4–0.7): 99%, unit_error (×1000 or ÷1000): 100%, double_count (×2): 100%, over_reporting (×1.4–1.8): 100%
-- **Diesel** — under_reporting (×0.4–0.7): 18%, unit_error (×1000 or ÷1000): 100%, double_count (×2): 26%, over_reporting (×1.4–1.8): 8%
+- **Natural gas** — under_reporting (×0.4–0.7): 98%, unit_error (×1000 or ÷1000): 100%, double_count (×2): 99%, over_reporting (×1.4–1.8): 92%
+- **Grid electricity** — under_reporting (×0.4–0.7): 66%, unit_error (×1000 or ÷1000): 100%, double_count (×2): 87%, over_reporting (×1.4–1.8): 42%
+- **Diesel** — under_reporting (×0.4–0.7): 11%, unit_error (×1000 or ÷1000): 100%, double_count (×2): 5%, over_reporting (×1.4–1.8): 2%
+
+### v2 vs v1 on the same held-out factories (same injected errors)
+
+| Energy carrier | ROC-AUC v1 → v2 | F1 v1 → v2 |
+|---|---|---|
+| Natural gas | 0.999 → 0.999 | 86.8% → 92.7% |
+| Grid electricity | 0.993 → 0.991 | 75.4% → 82.6% |
+| Diesel | 0.863 → 0.865 | 42.9% → 47.4% |
+
+### Fairness: false-flag rate on clean held-out months
+
+Share of months with no injected error that the model alone would grade **Low**, by factory size (worker terciles: small ≤ 1,838, medium ≤ 2,988, large > 2,988). Release rule: small factories must not be flagged more than 1.5× as often as large ones.
+
+| Calibration | Small | Medium | Large | Small ÷ large |
+|---|---|---|---|---|
+| Global σ | 7.50% | 4.08% | 3.00% | 2.50× |
+| Heteroscedastic, rate-controlled σ(x) (released) | 1.25% | 0.48% | 1.24% | 1.01× |
+
+| Factory type | False-flag rate | Months |
+|---|---|---|
+| denim wash | 0.09% | 1,152 |
+| knit composite | 0.46% | 3,024 |
+| sweater | 3.18% | 912 |
+| woven | 1.33% | 2,112 |
+
+Result: **passes** the release rule after the fix (heteroscedastic, rate-controlled scale: σ(x) = shape(x) × k, shape = quantile-GBM (q = 0.9) of |residual| from 4-fold out-of-fold residuals of the training factories, k set on calibration factories per factory type (Mondrian) so that a set share of clean months reach the Low threshold: gas_m3 0.5%, grid_kwh 0.5%, diesel_l 0.1%).
+
+Still to fix: **sweater** factories are flagged more than twice as often as the fleet (1.00%). The per-type calibration uses the pooled multiplier where a type has too few calibration months; more pilot data for these types is the fix, not a looser threshold.
+
+### Monitoring
+A weekly job compares the spread of recent calibrated residuals (all factories' latest verification runs) with the training σ per carrier and raises an alert when it moves by more than 30%: Natural gas σ₀ = 0.068, Grid electricity σ₀ = 0.094, Diesel σ₀ = 0.325.
 
 ### Limitations — read before quoting these numbers
 - **Training data is simulated.** Bangladesh has no open factory-level monthly energy dataset. The C-Trace simulator (`packages/ctrace/ctrace/simulator.py`) encodes transparent engineering assumptions (kWh/piece, steam per piece, captive gas generation, outages, solar yield, Eid shutdowns). Metrics show the method works on data with this structure; they are **not** proof of real-world accuracy. Retrain with pilot data: `uv run python ml/train.py --data pilot.csv`.

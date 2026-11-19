@@ -42,9 +42,12 @@ correlate logs.
 | `GET /v1/factories/{id}/weather` | Monthly T2M and cooling degree days, each labelled NASA POWER or climatology |
 | `GET /v1/factories/{id}/benchmark` | Climate TRACE sector context for annualised Scope 1 (a signal, not a grade) |
 | `GET /v1/data-sources` | Provenance of every public dataset (no auth) |
+| `POST /v1/factories/{id}/verification/run` · `GET …/verification` | Run / read the C-Trace Verifier: grade, expected band and drivers per month; `stale` after data changes |
+| `POST /v1/verification/{run_id}/{period}/resolve` | Reviewer resolution with comment (audit-logged) |
+| `GET /v1/admin/drift?run=` | Fleet drift checks (platform admins) |
 | `POST /v1/stateless/extract` · `/analyze` · `/report` | Prototype endpoints that store nothing |
 
-Verification runs, reductions, reports and sharing, and the Copilot come in later phases.
+Reductions, reports and sharing, and the Copilot come in later phases.
 
 ## Example
 ```bash

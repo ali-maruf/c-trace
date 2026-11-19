@@ -27,7 +27,7 @@
       "weather/power_+24.0_+90.5.csv"
     ],
     "notes": "T2M monthly mean at grid cell (24.0, 90.5); 57 months.",
-    "retrieved_at": "2026-11-19T19:07:26+00:00"
+    "retrieved_at": "2026-11-19T19:18:42+00:00"
   },
   "climate_trace_bgd_textiles": {
     "source": "Climate TRACE — emissions sources (API v7)",
@@ -38,5 +38,35 @@
     ],
     "notes": "Years [2025]; modelled estimates (activity from capacity × utilisation), t CO2e (100-yr GWP).",
     "retrieved_at": "2026-11-19T19:09:29+00:00"
+  },
+  "nasa_power_+23.5_+90.5": {
+    "source": "NASA POWER monthly T2M (MERRA-2)",
+    "url": "https://power.larc.nasa.gov/api/temporal/monthly/point",
+    "licence": "NASA POWER data are free and open; cite NASA Langley Research Center POWER Project",
+    "files": [
+      "weather/power_+23.5_+90.5.csv"
+    ],
+    "notes": "T2M monthly mean at grid cell (23.5, 90.5); 57 months.",
+    "retrieved_at": "2026-11-19T19:18:46+00:00"
+  },
+  "nasa_power_+22.5_+92.0": {
+    "source": "NASA POWER monthly T2M (MERRA-2)",
+    "url": "https://power.larc.nasa.gov/api/temporal/monthly/point",
+    "licence": "NASA POWER data are free and open; cite NASA Langley Research Center POWER Project",
+    "files": [
+      "weather/power_+22.5_+92.0.csv"
+    ],
+    "notes": "T2M monthly mean at grid cell (22.5, 92.0); 57 months.",
+    "retrieved_at": "2026-11-19T19:18:50+00:00"
+  },
+  "nasa_power_+24.5_+90.5": {
+    "source": "NASA POWER monthly T2M (MERRA-2)",
+    "url": "https://power.larc.nasa.gov/api/temporal/monthly/point",
+    "licence": "NASA POWER data are free and open; cite NASA Langley Research Center POWER Project",
+    "files": [
+      "weather/power_+24.5_+90.5.csv"
+    ],
+    "notes": "T2M monthly mean at grid cell (24.5, 90.5); 57 months.",
+    "retrieved_at": "2026-11-19T19:18:55+00:00"
   }
 }

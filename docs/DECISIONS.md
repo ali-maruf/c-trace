@@ -218,3 +218,60 @@ for it, and typing a number in would break the brief's "do not invent" rule.
 ### D32. Provenance file
 `data/public/PROVENANCE.json` records source, URL, licence, files and retrieval time for every fetched dataset.
 `GET /v1/data-sources` serves it, so the UI and reports can cite it.
+
+## Phase 5 — C-Trace Verifier v2
+
+### D33. Real weather in training and scoring
+The v2 fleet places each simulated factory in one of four NASA POWER cells (Gazipur/Savar, Dhaka/Narayanganj,
+Chattogram, Mymensingh/Bhaluka; shares are an assumption) and drives its cooling load with that cell's real monthly
+T2M, 2022-01 → 2025-12 (48 months). The location is drawn after every v1 random draw, so the v1 fleet stays bit-for-bit
+reproducible (tested). Scoring uses the factory's own `weather_monthly` series, with labelled climatology for
+unpublished months.
+
+### D34. Calibration: heteroscedastic, rate-controlled, per factory type
+v1 used one robust (MAD) σ per carrier. On real-weather data that ignored heavy tails: 4.7% of clean held-out months
+were graded Low, and small factories were flagged 2.5× as often as large ones, which fails the brief's 1.5× rule.
+Two intermediate attempts are recorded here because they failed:
+1. σ per size tercile: small/large went 2.5× → 1.66×, still failing.
+2. A quantile-GBM scale fitted on half the calibration factories: too little data, and overall false flags *rose* to 6.5%.
+
+Released method: σ(x) = shape(x) × k. The shape is a quantile-GBM (q = 0.9) of |calibrated residual| fitted on
+4-fold *out-of-fold* residuals of the 360 training factories. k is set per carrier and per factory type (Mondrian
+conformal) on the 90 calibration factories, so that a fixed share of clean months reaches the Low threshold: gas and
+grid 0.5%, diesel 0.1%, since diesel is advisory by the prototype's documented policy and should only flag gross
+errors. A type with too few calibration months uses the pooled k. Result on the 150 held-out factories: 1.0% false
+Lows, small/large 1.01×, and F1 at the app's thresholds better than v1 on every carrier (gas 0.868 → 0.927, grid
+0.754 → 0.826, diesel 0.429 → 0.474). Sweater factories remain at 3.2% false Lows; the card says so.
+
+### D35. Expected band
+Split-conformal 90% interval in log space, centre ± q·σ(x), with q from the calibration factories. Held-out coverage is
+88.9% / 90.6% / 89.9% (gas / grid / diesel). The band replaces the single "expected" line on the Verify chart.
+
+### D36. Drivers: exact group Shapley against the factory's typical month
+SHAP for HistGradientBoosting would add a dependency and explain log-space margins. C-Trace computes exact Shapley
+values over four feature groups (production, weather, solar, season): 16 coalitions, interventional, with features
+outside a coalition set to the factory's own mean over the scored months. Contributions are in the carrier's unit and
+sum exactly to expected − typical (tested). The profile (type, size, wet processing, captive generation) is the
+factory's own and contributes zero against its own baseline.
+
+### D37. Diesel thresholds measured where they are used
+v1's card reported precision/recall at |z| ≥ 3 for every carrier, but the app grades diesel Low at |z| ≥ 5. v2 reports
+detection at the app's Low thresholds (and keeps the @z3 numbers in metrics.json). The v1 comparison uses the same
+thresholds.
+
+### D38. Acceptance
+The demo factory flags exactly 2025-09 and 2026-07 under v1 and v2, with both climatology and NASA POWER weather
+(parametrised test). The first v2 calibration flagged 2025-07 diesel (z = 5.6, natural outage variation in the sample
+data). The fix was D34's diesel policy, not a threshold tuned to the demo.
+
+### D39. Registry and monitoring
+`models/ctrace-verifier/<version>/{model.joblib, metrics.json, MODEL_CARD.md}`; `CTRACE_VERIFIER_VERSION` (default v2).
+v1 pickles still load (new attributes are read through `getattr`). Drift: the worker checks weekly whether the robust
+spread of z across every factory's latest run moved more than 30% from the spread on clean calibration months
+(`drift_baseline_z`). It needs at least 60 months, so a small fleet never raises a false alarm.
+
+### D40. Verification persistence
+`verification_runs` remembers the latest activity-record change it saw, so the API reports a run as `stale` after any
+correction. A human-reviewed (confirmed/corrected) bill's extraction warnings no longer count as document issues.
+Resolution is one of `confirmed_correct | corrected | evidence_requested | not_an_issue` plus a required comment, and
+is audit-logged.

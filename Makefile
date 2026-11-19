@@ -3,7 +3,7 @@
 
 UV ?= $(shell command -v uv 2>/dev/null || echo "$(HOME)/.local/bin/uv")
 RUN := $(UV) run
-MODEL := models/ctrace_verifier.joblib
+MODEL := models/ctrace-verifier/v2/model.joblib
 
 .DEFAULT_GOAL := help
 .PHONY: eval-extraction eval-bills help setup train sample-data test lint typecheck check demo demo-reset demo-streamlit api worker db-start db-stop db-migrate dev-token fetch-data requirements docker-build compose-up clean

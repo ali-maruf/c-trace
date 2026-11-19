@@ -26,6 +26,18 @@ PUBLIC_DIR = DATA_DIR / "public"
 SAMPLES_DIR = DATA_DIR / "samples"
 BILLS_DIR = SAMPLES_DIR / "bills"
 MODELS_DIR = ROOT / "models"
+# C-Trace Verifier model registry: models/ctrace-verifier/<version>/{model.joblib, metrics.json, MODEL_CARD.md}
+CTRACE_VERIFIER_VERSION = os.getenv("CTRACE_VERIFIER_VERSION", "v2")
+
+
+def verifier_dir(version: str | None = None) -> Path:
+    return MODELS_DIR / "ctrace-verifier" / (version or CTRACE_VERIFIER_VERSION)
+
+
+def verifier_path(version: str | None = None) -> Path:
+    return verifier_dir(version) / "model.joblib"
+
+
 KNOWLEDGE_DIR = Path(__file__).resolve().parent / "knowledge"
 
 # ---- LLM settings (optional: C-Trace runs fully offline without a key) ----

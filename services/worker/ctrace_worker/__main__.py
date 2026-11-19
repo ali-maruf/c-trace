@@ -16,6 +16,7 @@ import time
 from ctrace.store.db import connect
 from ctrace.store.jobs import run_pending
 from ctrace.store.migrate import migrate
+from ctrace.store.verification import drift_check, drift_due
 
 log = logging.getLogger("ctrace.worker")
 
@@ -39,6 +40,9 @@ def main(argv: list[str] | None = None) -> None:
         migrate(conn)
         while not stopping:
             counts = run_pending(conn, worker_id, max_jobs=50)
+            if not args.drain and drift_due(conn):
+                with conn.transaction():
+                    log.info(json.dumps({"event": "drift_check", **{k: str(v) for k, v in drift_check(conn).items()}}))
             if any(counts.values()):
                 log.info(json.dumps({"event": "jobs_processed", "worker": worker_id, **counts}))
             elif args.drain:

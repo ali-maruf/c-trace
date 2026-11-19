@@ -24,7 +24,16 @@ DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 CDD_BASE_C = 24.0
 
 # Months with Eid holidays (production dips). Eid ul-Fitr & Eid ul-Adha, approximate.
-EID_MONTHS = {"2023-04", "2023-06", "2024-04", "2024-06", "2025-03", "2025-06", "2026-03", "2026-05"}
+EID_MONTHS = {"2022-05", "2022-07", "2023-04", "2023-06", "2024-04", "2024-06", "2025-03", "2025-06", "2026-03", "2026-05"}
+
+# Fleet locations for simulation with real weather (Verifier v2): NASA POWER 0.5° cells covering the main RMG
+# clusters. (name, lat, lon, share of factories). Shares are an assumption, roughly where RMG factories are.
+FLEET_LOCATIONS = [
+    ("Gazipur / Savar", 24.0, 90.5, 0.40),
+    ("Dhaka / Narayanganj", 23.5, 90.5, 0.30),
+    ("Chattogram", 22.5, 92.0, 0.20),
+    ("Mymensingh / Bhaluka", 24.5, 90.5, 0.10),
+]
 
 FACTORY_TYPES = {
     #                share  kWh/piece  gas m3/piece (wet)  gas m3/piece (dry)  p(wet)
@@ -51,13 +60,15 @@ def periods(start: str, end: str) -> list[str]:
     return [p.strftime("%Y-%m") for p in pd.period_range(start, end, freq="M")]
 
 
-def sample_factory(rng: np.random.Generator, fid: str) -> dict:
+def sample_factory(rng: np.random.Generator, fid: str, with_location: bool = False) -> dict:
+    """A random factory. The location is drawn last and only for real-weather fleets, so the v1 (climatology)
+    fleet's random stream, and therefore its training data, are unchanged."""
     types = list(FACTORY_TYPES)
     ftype = rng.choice(types, p=[FACTORY_TYPES[t][0] for t in types])
     _, e_int, g_wet, g_dry, p_wet = FACTORY_TYPES[ftype]
     workers = int(np.clip(rng.lognormal(np.log(2500), 0.6), 400, 12000))
     has_solar = rng.random() < 0.35
-    return {
+    f = {
         "factory_id": fid,
         "factory_type": ftype,
         "workers": workers,
@@ -72,14 +83,19 @@ def sample_factory(rng: np.random.Generator, fid: str) -> dict:
         "cool_kwh_per_cdd_worker": float(rng.uniform(0.15, 0.45)),
         "e_int": e_int, "g_wet": g_wet, "g_dry": g_dry,
     }
+    if with_location:
+        loc = FLEET_LOCATIONS[int(rng.choice(len(FLEET_LOCATIONS), p=[x[3] for x in FLEET_LOCATIONS]))]
+        f.update(location=loc[0], lat=loc[1], lon=loc[2])
+    return f
 
 
-def simulate_month(f: dict, period: str, idx: int, rng: np.random.Generator,
+def simulate_month(f: dict, period: str, idx: int, rng: np.random.Generator, t2m: float | None = None,
                    gas_efficiency_gain: float = 0.0, solar_override_kwp: float | None = None) -> dict:
     m = int(period[5:7]) - 1
     util = np.clip(rng.normal(0.82, 0.07), 0.45, 1.0) * (0.72 if period in EID_MONTHS else 1.0)
     pieces = f["capacity_pieces"] * util
-    c = cdd(period, rng)
+    # v1: Dhaka climatology + noise; v2: the cell's real monthly mean (NASA POWER) + a little site-level variation
+    c = cdd(period, rng) if t2m is None else max(0.0, t2m + rng.normal(0, 0.3) - CDD_BASE_C) * DAYS[m]
     demand_kwh = (
         f["workers"] * f["base_kwh_per_worker"]
         + pieces * f["e_int"] * f["e_mult"]
@@ -106,12 +122,27 @@ def simulate_month(f: dict, period: str, idx: int, rng: np.random.Generator,
     }
 
 
-def simulate_fleet(n_factories: int = 600, start: str = "2023-01", end: str = "2025-12", seed: int = 42) -> pd.DataFrame:
+def simulate_fleet(n_factories: int = 600, start: str = "2023-01", end: str = "2025-12", seed: int = 42,
+                   real_weather: bool = False) -> pd.DataFrame:
+    """Simulated fleet. With `real_weather`, each factory's cooling load follows NASA POWER T2M at its location
+    (cached series in data/public/weather/); otherwise the Dhaka climatology (v1)."""
+    temps: dict[tuple[float, float], dict[str, float]] = {}
+    if real_weather:
+        from .weather import load_cached
+        for _, lat, lon, _ in FLEET_LOCATIONS:
+            series = load_cached(lat, lon).set_index("period")["t2m_c"].to_dict()
+            missing = [p for p in periods(start, end) if p not in series]
+            if missing:
+                raise ValueError(f"No NASA POWER data for ({lat}, {lon}) in {missing[:3]}…; run scripts/fetch_weather.py")
+            temps[(lat, lon)] = series
     rng = np.random.default_rng(seed)
     rows = []
     ps = periods(start, end)
     for i in range(n_factories):
-        f = sample_factory(rng, f"F{i:04d}")
+        f = sample_factory(rng, f"F{i:04d}", with_location=real_weather)
         for idx, p in enumerate(ps):
-            rows.append(simulate_month(f, p, idx, rng))
+            t = temps[(f["lat"], f["lon"])][p] if real_weather else None
+            row = simulate_month(f, p, idx, rng, t2m=t)
+            row["location"] = f.get("location", "Dhaka climatology")
+            rows.append(row)
     return pd.DataFrame(rows)

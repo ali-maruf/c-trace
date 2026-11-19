@@ -32,7 +32,7 @@ st.markdown(f"""
 
 @st.cache_resource
 def load_verifier() -> Verifier | None:
-    p = config.MODELS_DIR / "ctrace_verifier.joblib"
+    p = config.verifier_path()
     return Verifier.load(p) if p.exists() else None
 
 
@@ -79,7 +79,7 @@ with c2:
     st.write("")
     mode = f"LLM extraction ON · {config.CTRACE_EXTRACTION_MODEL}" if config.llm_enabled() else "Offline mode · rules parser (set ANTHROPIC_API_KEY for vision + Bangla)"
     st.caption(f"⚙️ {mode}")
-    st.caption("🧠 C-Trace Verifier v1 loaded" if verifier else "⚠️ Model not trained — run `make train`")
+    st.caption(f"🧠 {verifier.meta.get('model', 'C-Trace Verifier')} loaded" if verifier else "⚠️ Model not trained — run `make train`")
 
 with st.sidebar:
     st.markdown(f"### {BRAND}")

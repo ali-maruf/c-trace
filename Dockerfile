@@ -19,9 +19,9 @@ RUN mkdir -p packages/ctrace/ctrace services/api/ctrace_api services/worker/ctra
  && uv sync --frozen --no-dev --all-packages --no-install-workspace
 
 COPY . .
-RUN uv sync --frozen --no-dev --all-packages \
- && python ml/train.py >/dev/null \
- && python scripts/make_sample_data.py
+# The trained C-Trace Verifier (models/ctrace-verifier/<version>/) and the demo bills are committed; CI retrains to
+# check that they are reproducible.
+RUN uv sync --frozen --no-dev --all-packages
 
 ENV CTRACE_ROOT=/app
 EXPOSE 8501 8000

@@ -76,3 +76,8 @@ class OfficialFactorIn(BaseModel):
     source: str = Field(min_length=5, max_length=300, description="Publication name, e.g. the national grid emission factor notice")
     source_url: str = Field(pattern=r"^https?://", max_length=500)
     notes: str | None = Field(default=None, max_length=1000)
+
+
+class ResolveIn(BaseModel):
+    resolution: Literal["confirmed_correct", "corrected", "evidence_requested", "not_an_issue"]
+    comment: str = Field(min_length=3, max_length=2000, description="What the reviewer checked; stored in the audit log")

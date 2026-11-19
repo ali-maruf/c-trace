@@ -51,7 +51,8 @@ app = FastAPI(
     openapi_tags=[
         {"name": "auth"}, {"name": "factories"}, {"name": "production"}, {"name": "documents"},
         {"name": "review", "description": "Human-in-the-loop confirmation and corrections (audit-logged)"},
-        {"name": "emissions"}, {"name": "factors"},
+        {"name": "emissions"}, {"name": "verification", "description": "C-Trace Verifier: expected use, bands, drivers, flags"},
+        {"name": "factors"},
         {"name": "stateless", "description": "Prototype endpoints that store nothing"},
     ],
 )
@@ -63,6 +64,11 @@ app.include_router(stateless.router)
 @app.exception_handler(service.NotFound)
 async def not_found(_: Request, exc: service.NotFound) -> JSONResponse:
     return JSONResponse({"detail": f"{exc} not found"}, status_code=404)
+
+
+@app.exception_handler(FileNotFoundError)
+async def missing_model(_: Request, exc: FileNotFoundError) -> JSONResponse:
+    return JSONResponse({"detail": str(exc)}, status_code=503)
 
 
 @app.exception_handler(ValueError)
@@ -79,4 +85,4 @@ def health(request: Request) -> dict:
     except Exception as exc:  # report, don't crash the health check
         db = f"error: {type(exc).__name__}"
     return {"service": BRAND, "version": __version__, "llm": config.llm_enabled(),
-            "model": (config.MODELS_DIR / "ctrace_verifier.joblib").exists(), "database": db}
+            "model": config.verifier_path().exists(), "database": db}

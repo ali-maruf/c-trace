@@ -6,7 +6,7 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .DS_Store
-data/training_fleet.csv
+data/training_fleet*.csv
 .pgdata/
 data/storage/
 .secrets/

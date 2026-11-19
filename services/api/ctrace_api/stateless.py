@@ -33,7 +33,7 @@ _verifier: Verifier | None = None
 def verifier() -> Verifier:
     global _verifier
     if _verifier is None:
-        p = config.MODELS_DIR / "ctrace_verifier.joblib"
+        p = config.verifier_path()
         if not p.exists():
             raise HTTPException(503, "C-Trace Verifier not trained. Run: make train")
         _verifier = Verifier.load(p)

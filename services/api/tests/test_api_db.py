@@ -335,3 +335,70 @@ def test_benchmark_is_context_not_a_grade(client, demo, demo_headers):
     assert "not" in b["caveat"] and b["licence"].startswith("CC BY 4.0") and b["factory_months_used"] == 12
     sources = client.get("/v1/data-sources").json()
     assert {"owid_energy", "climate_trace_bgd_textiles"} <= set(sources)
+
+
+# ------------------------------------------------------------------ phase 5: persisted verification
+@pytest.fixture(scope="module")
+def demo_copy(client, owner_conn, token):
+    """The fictional demo factory loaded into its own organisation (so review actions don't touch `demo`)."""
+    from ctrace.store.registry import sync_weather
+    uid, org = new_member(owner_conn, None, "owner")
+    prof = json.loads((config.SAMPLES_DIR / "factory_profile.json").read_text())
+    with org_tx(owner_conn, org, uid):
+        f = service.create_factory(owner_conn, uid, {"name": "Demo copy (fictional)", "factory_type": prof["factory_type"],
+                                                     "workers": prof["workers"], "has_wet_processing": True, "captive_gas_gen": True,
+                                                     "lat": 24.0, "lon": 90.42})
+        service.add_asset(owner_conn, uid, f["id"], "solar", 600, "kWp", "2026-04")
+        for iv in prof["interventions"]:
+            service.add_intervention(owner_conn, uid, f["id"], iv["measure"], iv["from"])
+        prod = pd.read_csv(config.SAMPLES_DIR / "production.csv")
+        service.upsert_production(owner_conn, uid, f["id"], list(zip(prod.period, prod.pieces.astype(float), strict=True)), "fictional")
+        for p in sorted(config.BILLS_DIR.glob("*.pdf")):
+            service.ingest_document(owner_conn, uid, f["id"], p.name, p.read_bytes(), "application/pdf")
+    sync_weather(owner_conn, 24.0, 90.42)
+    run_pending(owner_conn)
+    return {"user_id": uid, "org_id": org, "factory_id": f["id"], "headers": auth(token(uid))}
+
+
+def low_months(body: dict) -> set[str]:
+    return {r["period"] for r in body["results"] if r["confidence"] == "Low"}
+
+
+def test_verification_review_loop(client, owner_conn, demo_copy, token, monkeypatch):
+    fid, h = demo_copy["factory_id"], demo_copy["headers"]
+    assert client.get(f"/v1/factories/{fid}/verification", headers=h).status_code == 404   # nothing run yet
+    viewer, _ = new_member(owner_conn, demo_copy["org_id"], "viewer")
+    assert client.post(f"/v1/factories/{fid}/verification/run", headers=auth(token(viewer))).status_code == 403
+
+    first = client.post(f"/v1/factories/{fid}/verification/run", headers=h)
+    assert first.status_code == 200, first.text
+    body = first.json()
+    assert low_months(body) == {"2025-09", "2026-07"} and body["stale"] is False
+    assert body["run"]["model_version"] == "C-Trace Verifier v2" and "NASA POWER monthly T2M (MERRA-2)" in body["run"]["weather_source"]
+    jul = next(r for r in body["results"] if r["period"] == "2025-07")["z"]["grid_kwh"]
+    assert jul["expected_lo"] <= jul["expected"] <= jul["expected_hi"] and set(jul["drivers"]) >= {"typical", "production", "weather"}
+
+    s = next(x for x in client.get(f"/v1/factories/{fid}/suggestions", headers=h).json() if x["period"] == "2025-09")
+    client.post(f"/v1/activity-records/{s['activity_record_id']}/correct", headers=h,
+                json={"quantity": s["suggested_quantity"], "reason": "Accepted tariff-based correction (dropped digit)"})
+    assert client.get(f"/v1/factories/{fid}/verification", headers=h).json()["stale"] is True
+    second = client.post(f"/v1/factories/{fid}/verification/run", headers=h).json()
+    assert low_months(second) == {"2026-07"} and second["stale"] is False
+
+    run_id = second["run"]["id"]
+    bad = client.post(f"/v1/verification/{run_id}/2026-07/resolve", headers=h, json={"resolution": "evidence_requested", "comment": ""})
+    assert bad.status_code == 422
+    ok = client.post(f"/v1/verification/{run_id}/2026-07/resolve", headers=h,
+                     json={"resolution": "evidence_requested", "comment": "Asked the store for the July diesel receipt"})
+    assert ok.status_code == 200 and ok.json()["resolution"].startswith("evidence_requested: Asked")
+    latest = client.get(f"/v1/factories/{fid}/verification", headers=h).json()
+    assert next(r for r in latest["results"] if r["period"] == "2026-07")["resolved_by"] == demo_copy["user_id"]
+    with org_tx(owner_conn, demo_copy["org_id"], demo_copy["user_id"]):
+        actions = [r["action"] for r in owner_conn.execute("select action from audit_log where action like 'verification.%' order by id")]
+    assert actions == ["verification.run", "verification.run", "verification.resolve"]
+
+    assert client.get("/v1/admin/drift", headers=h).status_code == 403
+    monkeypatch.setenv("CTRACE_PLATFORM_ADMIN_EMAILS", "user@c-trace.test")  # the test tokens' email
+    checks = client.get("/v1/admin/drift", headers=h, params={"run": True}).json()
+    assert checks[0]["model_version"] == "C-Trace Verifier v2" and checks[0]["n_factories"] >= 1
+    assert checks[0]["alert"] is False   # too few months to judge: never a false alarm

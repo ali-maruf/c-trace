@@ -44,7 +44,9 @@ def document_issues(records: pd.DataFrame, all_periods: list[str]) -> dict[str, 
     return dict(issues)
 
 
-def run(records: pd.DataFrame, production: pd.DataFrame, profile: dict, verifier: Verifier | None = None) -> dict:
+def run(records: pd.DataFrame, production: pd.DataFrame, profile: dict, verifier: Verifier | None = None,
+        weather: pd.DataFrame | None = None, explain: bool = False) -> dict:
+    """`weather`: optional (period, cdd) table, e.g. NASA POWER at the factory; default is the Dhaka climatology."""
     records = records.copy()
     records = records[records.period.notna() & records.activity.notna()]
     ledger = build_ledger(records.drop_duplicates("doc_sha256"))
@@ -59,7 +61,8 @@ def run(records: pd.DataFrame, production: pd.DataFrame, profile: dict, verifier
         monthly[col] = monthly.period.map(q[a]) if a in q else np.nan
     monthly = monthly.merge(production[["period", "pieces"]], on="period", how="left")
     monthly["month"] = monthly.period.str[5:7].astype(int)
-    monthly["cdd"] = monthly.period.map(cdd)
+    real_cdd = dict(zip(weather.period, weather.cdd, strict=True)) if weather is not None else {}
+    monthly["cdd"] = monthly.period.map(lambda p: real_cdd.get(p, cdd(p)))
     monthly["factory_type"] = profile["factory_type"]
     monthly["workers"] = profile["workers"]
     monthly["has_wet_processing"] = profile["has_wet_processing"]
@@ -72,7 +75,7 @@ def run(records: pd.DataFrame, production: pd.DataFrame, profile: dict, verifier
         scorable = monthly.dropna(subset=["pieces"])
         breakpoints = sorted({i["from"] for i in profile.get("interventions", [])} |
                              {s["from"] for s in profile.get("solar", [])})
-        graded = grade_months(verifier.score_factory(scorable, breakpoints), issues)
+        graded = grade_months(verifier.score_factory(scorable, breakpoints, explain=explain), issues)
     return {"ledger": ledger, "summary": summary, "monthly": monthly, "issues": issues,
             "verification": graded, "suggestions": tariff_corrections(records)}
 

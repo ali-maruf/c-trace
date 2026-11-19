@@ -15,7 +15,7 @@ def test_app_starts_without_data():
     assert any("Load demo factory" in i.value for i in at.info)
 
 
-@pytest.mark.skipif(not (config.MODELS_DIR / "ctrace_verifier.joblib").exists(), reason="train the model first")
+@pytest.mark.skipif(not config.verifier_path().exists(), reason="train the model first")
 def test_demo_factory_loads_and_flags_planted_months():
     at = AppTest.from_file(str(APP), default_timeout=180).run()
     next(b for b in at.button if "Load demo factory" in b.label).click().run()

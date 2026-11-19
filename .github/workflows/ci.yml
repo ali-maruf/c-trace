@@ -35,8 +35,11 @@ jobs:
         run: uv run ruff check .
       - name: mypy
         run: uv run mypy
-      - name: Retrain C-Trace Verifier (checks the model card is reproducible)
-        run: uv run python ml/train.py > /dev/null
+      - name: Retrain C-Trace Verifier (must reproduce the committed headline metrics)
+        run: |
+          git show HEAD:models/ctrace-verifier/v2/metrics.json > /tmp/committed_metrics.json
+          uv run python ml/train.py > /dev/null
+          uv run python ml/check_reproducible.py /tmp/committed_metrics.json
       - name: Tests
         run: uv run pytest
       - name: requirements.txt matches uv.lock

@@ -11,6 +11,7 @@ Signals combined into one confidence grade per month:
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -43,6 +44,15 @@ def make_features(df: pd.DataFrame) -> pd.DataFrame:
     return X[FEATURES]
 
 
+Z90 = 1.6448536  # standard normal 95th percentile: q90 of |N(0, σ)| = 1.645 σ
+DRIVER_GROUPS = {
+    "production": ["log_pieces"],
+    "weather": ["cdd"],
+    "solar": ["solar_kwp"],
+    "season": ["month_sin", "month_cos"],
+}
+
+
 @dataclass
 class Verifier:
     models: dict          # target -> fitted regressor (predicts log1p(quantity))
@@ -50,15 +60,38 @@ class Verifier:
     iso: Any              # sklearn IsolationForest on the residual pattern
     iso_threshold: float
     meta: dict
+    # v2 additions (absent on v1 pickles; read through getattr)
+    version: str = "v1"
+    conformal_q: dict | None = None        # target -> 90% split-conformal multiplier (of σ(x) when scale_models set)
+    scale_models: dict | None = None       # target -> quantile-GBM of |calibrated residual| → shape of σ(x)
+    scale_k: dict | None = None            # target -> {factory_type: k}: sets the clean-month Low rate per type (Mondrian)
 
     @classmethod
     def load(cls, path=None) -> Verifier:
-        return joblib.load(path or (config.MODELS_DIR / "ctrace_verifier.joblib"))
+        v = joblib.load(path or config.verifier_path())
+        if not hasattr(v, "version"):
+            v.version = v.meta.get("version", "v1")
+        return v
 
-    def save(self, path=None):
-        joblib.dump(self, path or (config.MODELS_DIR / "ctrace_verifier.joblib"))
+    def save(self, path) -> None:
+        joblib.dump(self, path)
 
     # ---------------------------------------------------------------
+    def sigma_rows(self, tgt: str, X: pd.DataFrame) -> np.ndarray:
+        """Residual scale per row. v1: one σ per carrier. v2: σ(x) = shape(x) × k — the shape is the q90 of |residual|
+        for factories like this one (÷ 1.645, kept within [0.5σ, 3σ]); k is calibrated so that clean months reach the
+        Low threshold at the target rate on held-out calibration factories."""
+        sm = getattr(self, "scale_models", None)
+        base = float(self.sigma[tgt])
+        if not sm:
+            return np.full(len(X), base)
+        shape = np.clip(sm[tgt].predict(X) / Z90, 0.5 * base, 3.0 * base)
+        k = (getattr(self, "scale_k", None) or {}).get(tgt)
+        if k is None:
+            return shape
+        type_code = X["type_code"].to_numpy()
+        return shape * np.array([k.get(FACTORY_TYPES[int(c)], k["_all"]) for c in type_code])
+
     def residuals(self, df: pd.DataFrame) -> pd.DataFrame:
         X = make_features(df)
         out = pd.DataFrame(index=df.index)
@@ -92,25 +125,83 @@ class Verifier:
             res[i] = np.median(others) if len(others) >= min_others else 0.0
         return pd.Series(res, index=s.index)
 
-    def score_factory(self, df: pd.DataFrame, breakpoints: list[str] | None = None) -> pd.DataFrame:
+    def score_factory(self, df: pd.DataFrame, breakpoints: list[str] | None = None, explain: bool = False) -> pd.DataFrame:
         """df: one factory's monthly table with profile columns + gas_m3, grid_kwh, diesel_l.
-        breakpoints: periods (YYYY-MM) where a declared intervention starts a new operating regime."""
+        breakpoints: periods (YYYY-MM) where a declared intervention starts a new operating regime.
+        explain: add per-month driver contributions (`drivers_<target>`), see `explain`."""
         df = df.sort_values("period").copy()
         segments = df["period"].map(lambda p: sum(p >= b for b in (breakpoints or [])))
         r = self.residuals(df)
         out = df[["period"]].copy()
         out["regime"] = segments.values
-        zcols = []
+        X = make_features(df)
+        q = getattr(self, "conformal_q", None) or {}
+        scaled = bool(getattr(self, "scale_models", None))
+        zcols, calibs = [], {}
         for tgt in self.models:
             calib = self.loo_median(r[f"resid_{tgt}"], segments)
-            z = (r[f"resid_{tgt}"] - calib) / self.sigma[tgt]
-            out[f"expected_{tgt}"] = np.expm1(r[f"pred_{tgt}"] + calib).round(1)
+            calibs[tgt] = calib
+            centre = r[f"pred_{tgt}"] + calib
+            sig = self.sigma_rows(tgt, X)
+            z = (r[f"resid_{tgt}"] - calib) / sig
+            out[f"expected_{tgt}"] = np.expm1(centre).round(1)
+            if tgt in q:
+                half = q[tgt] * sig if scaled else q[tgt]
+                out[f"expected_lo_{tgt}"] = np.expm1(centre - half).clip(lower=0).round(1)
+                out[f"expected_hi_{tgt}"] = np.expm1(centre + half).round(1)
             out[f"reported_{tgt}"] = df[tgt].values
             out[f"z_{tgt}"] = z.round(2)
             zcols.append(f"z_{tgt}")
         iso_X = out[zcols].fillna(0).to_numpy()
         out["iso_score"] = -self.iso.score_samples(iso_X)   # higher = more unusual
         out["iso_flag"] = out["iso_score"] > self.iso_threshold
+        if explain:
+            for tgt, drivers in self.explain(df, calibs).items():
+                out[f"drivers_{tgt}"] = drivers
+        return out
+
+    def explain(self, df: pd.DataFrame, calibs: dict[str, pd.Series]) -> dict[str, list[dict]]:
+        """Exact Shapley values over DRIVER_GROUPS for each month's expected quantity, in the carrier's unit.
+
+        Reference point: the factory's own typical month (mean of each driver feature over the months scored),
+        so contributions answer "why is this month's expected use different from usual?". Features outside a
+        coalition take their reference value; the factory profile (type, size, wet processing, captive generation)
+        is the factory's own and stays fixed. Efficiency holds exactly: typical + Σ contributions = expected.
+        """
+        X = make_features(df).reset_index(drop=True)
+        groups = list(DRIVER_GROUPS)
+        n_g = len(groups)
+        ref = X[[c for g in groups for c in DRIVER_GROUPS[g]]].mean()
+        masks = [tuple(bool(m >> i & 1) for i in range(n_g)) for m in range(2 ** n_g)]
+        variants = []
+        for mask in masks:
+            Xm = X.copy()
+            for g, on in zip(groups, mask, strict=True):
+                if not on:
+                    for c in DRIVER_GROUPS[g]:
+                        Xm[c] = ref[c]
+            variants.append(Xm)
+        big = pd.concat(variants, ignore_index=True)
+        n = len(X)
+        weight = {k: math.factorial(k) * math.factorial(n_g - k - 1) / math.factorial(n_g) for k in range(n_g)}
+        out: dict[str, list[dict]] = {}
+        for tgt, model in self.models.items():
+            calib = calibs[tgt].to_numpy(float)
+            val = np.expm1(model.predict(big).reshape(len(masks), n) + calib)  # (coalition, month)
+            index = {m: i for i, m in enumerate(masks)}
+            rows = []
+            for j in range(n):
+                contrib = {}
+                for gi, g in enumerate(groups):
+                    phi = 0.0
+                    for m in masks:
+                        if m[gi]:
+                            continue
+                        with_g = tuple(True if k == gi else v for k, v in enumerate(m))
+                        phi += weight[sum(m)] * (val[index[with_g], j] - val[index[m], j])
+                    contrib[g] = round(float(phi), 1)
+                rows.append({"typical": round(float(val[index[masks[0]], j]), 1), **contrib})
+            out[tgt] = rows
         return out
 
 

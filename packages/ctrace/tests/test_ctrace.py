@@ -56,7 +56,7 @@ def test_ledger_is_traceable_and_correct():
 
 @pytest.fixture(scope="module")
 def demo():
-    if not (config.MODELS_DIR / "ctrace_verifier.joblib").exists():
+    if not config.verifier_path().exists():
         pytest.skip("train the model first")
     recs = pd.DataFrame([extract_pdf_rules(p).as_dict() for p in BILLS])
     prod = pd.read_csv(config.SAMPLES_DIR / "production.csv")

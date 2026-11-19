@@ -7,16 +7,28 @@ from contextlib import contextmanager
 from typing import Annotated
 
 import pandas as pd
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, Request, UploadFile, status
 from fastapi.responses import Response
 
 from ctrace.public_data import provenance
 from ctrace.simulator import periods as period_range
 from ctrace.store import registry, service
+from ctrace.store import verification as verif
 from ctrace.store.db import Conn, org_tx
 
 from .auth import MANAGE_ROLES, RAW_DOCUMENT_ROLES, READ_ROLES, REVIEW_ROLES, Principal, current_principal, require_platform_admin
-from .schemas import PERIOD, AssetIn, CorrectionIn, FactoryIn, InterventionIn, OfficialFactorIn, ProductionIn, RejectIn, ReviewIn
+from .schemas import (
+    PERIOD,
+    AssetIn,
+    CorrectionIn,
+    FactoryIn,
+    InterventionIn,
+    OfficialFactorIn,
+    ProductionIn,
+    RejectIn,
+    ResolveIn,
+    ReviewIn,
+)
 
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 MAX_FILES_PER_UPLOAD = 50
@@ -260,3 +272,34 @@ def get_benchmark(request: Request, p: Auth, factory_id: str) -> dict:
 @router.get("/data-sources", tags=["factors"], summary="Public datasets C-Trace uses, with URL, licence and retrieval time")
 def data_sources() -> dict:
     return provenance()
+
+
+# ------------------------------------------------------------------ verification (C-Trace Verifier)
+@router.post("/factories/{factory_id}/verification/run", tags=["verification"],
+             summary="Run the C-Trace Verifier on the factory's current data (expected band, drivers, grades)")
+def run_verification(request: Request, p: Auth, factory_id: str) -> dict:
+    with scoped(request, p, REVIEW_ROLES, "run verification") as conn:
+        return verif.run_verification(conn, p.user_id, factory_id)
+
+
+@router.get("/factories/{factory_id}/verification", tags=["verification"], summary="Latest verification run (stale if data changed since)")
+def get_verification(request: Request, p: Auth, factory_id: str) -> dict:
+    with scoped(request, p) as conn:
+        return verif.latest(conn, factory_id)
+
+
+@router.post("/verification/{run_id}/{period}/resolve", tags=["verification"],
+             summary="Reviewer resolution of a flagged month, with a comment (audit-logged)")
+def resolve_month(request: Request, p: Auth, run_id: str, period: Annotated[str, Path(pattern=PERIOD)], body: ResolveIn) -> dict:
+    with scoped(request, p, REVIEW_ROLES, "resolve verification flags") as conn:
+        return verif.resolve(conn, p.user_id, run_id, period, body.resolution, body.comment)
+
+
+@router.get("/admin/drift", tags=["verification"], summary="C-Trace Verifier drift checks across the fleet (platform admins)")
+def get_drift(request: Request, p: Auth, run: bool = False) -> list[dict]:
+    require_platform_admin(p)
+    with request.app.state.pool.connection() as conn:
+        if run:
+            with conn.transaction():
+                verif.drift_check(conn)
+        return [service.clean(r) for r in conn.execute("select * from model_drift_checks order by checked_at desc limit 20")]
