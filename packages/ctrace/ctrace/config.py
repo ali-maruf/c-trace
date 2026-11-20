@@ -66,6 +66,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 CTRACE_OPENAI_BASE_URL = os.getenv("CTRACE_OPENAI_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/")
 CTRACE_OPENAI_MODEL = os.getenv("CTRACE_OPENAI_MODEL", "nvidia/nemotron-3.5-super-vl:free,google/gemma-4-31b-it:free")
 CTRACE_OPENAI_VISION = os.getenv("CTRACE_OPENAI_VISION", "1") == "1"
+CTRACE_OPENAI_REASONING = os.getenv("CTRACE_OPENAI_REASONING", "low")  # OpenRouter reasoning effort
 
 
 def openai_models() -> list[str]:

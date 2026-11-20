@@ -292,7 +292,7 @@ def answer_llm_openai(question: str, tools: Tools, language: str, client: Any, m
     calls: list[dict] = []
     results: list[Any] = []
     for _ in range(max_steps):
-        resp = client.chat(model=model, max_tokens=3000, tools=to_openai_tools(TOOL_SPECS), tool_choice="auto", messages=messages)
+        resp = client.chat(model=model, max_tokens=8000, tools=to_openai_tools(TOOL_SPECS), tool_choice="auto", messages=messages)
         msg = resp["choices"][0]["message"]
         if msg.get("refusal"):
             break

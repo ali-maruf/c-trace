@@ -38,6 +38,8 @@ class OpenAICompat:
         fallbacks = [m for m in config.openai_models() if m != body.get("model")]
         if "openrouter.ai" in self.base_url and fallbacks and body.get("model") in config.openai_models():
             body["models"] = [body["model"], *fallbacks]  # OpenRouter tries these in order if one is unavailable
+        if "openrouter.ai" in self.base_url:
+            body.setdefault("reasoning", {"effort": config.CTRACE_OPENAI_REASONING})  # reasoning models: keep tokens for the answer
         last: Exception | None = None
         for attempt in range(3):
             r = self.http.post(f"{self.base_url}/chat/completions", json=body)
@@ -87,7 +89,7 @@ def first_json_object(text: str) -> dict:
 
 
 def structured_call(llm: OpenAICompat, *, model: str, prompt: Prompt, content: list[dict], purpose: str,
-                    document_sha256: str | None = None, max_tokens: int = 4096, on_call: OnCall | None = None) -> dict:
+                    document_sha256: str | None = None, max_tokens: int = 16000, on_call: OnCall | None = None) -> dict:
     """Ask for JSON that matches `prompt.schema`. Hosts that reject `json_schema` get `json_object` plus the schema
     in the system prompt (versioned in prompts/openai_json). Every attempt is reported through `on_call`."""
     strict = {"type": "json_schema", "json_schema": {"name": prompt.name, "strict": True, "schema": prompt.schema}}
