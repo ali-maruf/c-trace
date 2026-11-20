@@ -426,3 +426,15 @@ drops non-libpq URL parameters (`supa=`), and switches Supabase's transaction po
 which behaves like a direct connection. The project's function default region was `iad1`, so every query crossed from the
 US to Mumbai (186 ms round-trip, about 4 s per bill, a demo start over 300 s). The region is now `bom1`: 1.9 ms per
 round-trip, and a demo start takes about 7 s. `/api/health` reports `database_roundtrip_ms` so this is visible.
+
+### D61. A free OpenAI-compatible provider beside Claude
+The team asked for a free ChatGPT-family model for the hosted demo. GitHub Models was retired on 30 Jul 2026, so the free
+option is OpenAI's open-weight `gpt-oss-120b` on a free tier (OpenRouter by default; Groq and Cerebras also serve it).
+`ctrace.llm_openai` speaks the plain `/chat/completions` format over httpx (no SDK), so any compatible host works by
+changing `CTRACE_OPENAI_BASE_URL`. Claude is used when `ANTHROPIC_API_KEY` is set; otherwise `OPENAI_API_KEY` selects this
+path. The rules are unchanged: the model returns printed text with evidence, code parses and checks it, and Copilot and
+narrative text pass the number guard. Extraction asks for `json_schema`; a host that rejects it gets `json_object` with
+the schema in the versioned `prompts/openai_json/v1.md`. gpt-oss reads text only, so PDFs go as their text layer and
+photos are refused with a plain message unless `CTRACE_OPENAI_VISION=1`. A rate-limited or failing endpoint falls back
+to the offline parser or the offline Copilot, saying so. The demo factory's sample bills (matched by SHA-256) always use
+the deterministic parser: each sandbox re-reads all 65, which would exhaust a free quota and change the pitch numbers.

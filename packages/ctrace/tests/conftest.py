@@ -52,3 +52,10 @@ class FakeLLM:
 @pytest.fixture
 def fakes() -> SimpleNamespace:
     return SimpleNamespace(field=field, bangla_gas_bill=bangla_gas_bill, response=response, FakeLLM=FakeLLM)
+
+
+@pytest.fixture(autouse=True)
+def _no_ambient_openai_key(monkeypatch):
+    """A developer's OPENAI_API_KEY must not switch the suite onto the OpenAI-compatible provider."""
+    from ctrace import config
+    monkeypatch.setattr(config, "OPENAI_API_KEY", "")

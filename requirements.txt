@@ -21,6 +21,7 @@ anyio==4.16.0
     # via
     #   anthropic
     #   fastapi
+    #   httpx
     #   httpx2
     #   starlette
     #   streamlit
@@ -30,7 +31,10 @@ attrs==26.1.0
     #   jsonschema
     #   referencing
 certifi==2026.10.23
-    # via requests
+    # via
+    #   httpcore
+    #   httpx
+    #   requests
 cffi==2.1.1 ; platform_python_implementation != 'PyPy'
     # via cryptography
 charset-normalizer==3.5.2
@@ -54,12 +58,17 @@ fastapi==0.165.0
     # via ctrace-api
 h11==0.16.0
     # via
+    #   httpcore
     #   httpcore2
     #   uvicorn
+httpcore==1.0.9
+    # via httpx
 httpcore2==2.16.2 ; sys_platform != 'emscripten'
     # via httpx2
 httptools==0.9.0
     # via uvicorn
+httpx==0.28.1
+    # via ctrace
 httpx2==2.16.2
     # via anthropic
 httpx2-jsfetch==1.0 ; sys_platform == 'emscripten'
@@ -67,6 +76,7 @@ httpx2-jsfetch==1.0 ; sys_platform == 'emscripten'
 idna==3.20
     # via
     #   anyio
+    #   httpx
     #   httpx2
     #   requests
 itsdangerous==2.2.0

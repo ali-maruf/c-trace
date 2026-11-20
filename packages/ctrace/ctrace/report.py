@@ -128,19 +128,23 @@ def number_guard(text: str, facts: dict) -> list[str]:
 def llm_narrative(fmt: str, facts: dict, guidance: list) -> str | None:
     if not config.llm_enabled():
         return None
-    import anthropic
-
-    client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
     ctx = "\n\n".join(f"[{c.title} | {c.source}]\n{c.text}" for c, _ in guidance)
-    msg = client.messages.create(
-        model=config.CTRACE_REPORT_MODEL, max_tokens=700,
-        system=("You write the narrative section of a C-Trace carbon report. Use ONLY numbers that appear in the "
-                "FACTS JSON, copied exactly. Do not compute new numbers. Use the GUIDANCE to frame the disclosure. "
-                "Plain, professional English, 150-220 words, no headings, no bullet points."),
-        messages=[{"role": "user", "content": f"FORMAT: {FORMATS[fmt]['title']}\n\nFACTS:\n{json.dumps(facts, default=str)}\n\nGUIDANCE:\n{ctx}"}],
-    )
-    text = "".join(getattr(b, "text", "") for b in msg.content).strip()
-    return text if not number_guard(text, facts) else None
+    system = ("You write the narrative section of a C-Trace carbon report. Use ONLY numbers that appear in the "
+              "FACTS JSON, copied exactly. Do not compute new numbers. Use the GUIDANCE to frame the disclosure. "
+              "Plain, professional English, 150-220 words, no headings, no bullet points.")
+    user = f"FORMAT: {FORMATS[fmt]['title']}\n\nFACTS:\n{json.dumps(facts, default=str)}\n\nGUIDANCE:\n{ctx}"
+    if config.llm_provider() == "openai":
+        from .llm_openai import client as openai_client
+        from .llm_openai import text_call
+        text = text_call(openai_client(), model=config.CTRACE_OPENAI_MODEL, system=system, user=user, max_tokens=1500)
+    else:
+        import anthropic
+
+        client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+        msg = client.messages.create(model=config.CTRACE_REPORT_MODEL, max_tokens=700, system=system,
+                                     messages=[{"role": "user", "content": user}])
+        text = "".join(getattr(b, "text", "") for b in msg.content).strip()
+    return text if text and not number_guard(text, facts) else None
 
 
 def generate(fmt: str, facts: dict) -> dict:
@@ -149,7 +153,7 @@ def generate(fmt: str, facts: dict) -> dict:
     try:
         text = llm_narrative(fmt, facts, guidance)
         if text:
-            method = f"llm:{config.CTRACE_REPORT_MODEL} (number-guard passed)"
+            method = f"llm:{config.report_model()} (number-guard passed)"
     except Exception:
         text = None
     if not text:

@@ -58,8 +58,30 @@ CTRACE_LLM_RATE_PER_MIN = int(os.getenv("CTRACE_LLM_RATE_PER_MIN", "20"))  # per
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
 
+# OpenAI-compatible provider (any /chat/completions endpoint: OpenRouter, Groq, Cerebras, OpenAI). Used only when
+# ANTHROPIC_API_KEY is not set. The default is OpenAI's open-weight gpt-oss-120b on OpenRouter's free tier, a text-only
+# model: it reads PDF text layers; photo bills need CTRACE_OPENAI_VISION=1 and a vision model.
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+CTRACE_OPENAI_BASE_URL = os.getenv("CTRACE_OPENAI_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/")
+CTRACE_OPENAI_MODEL = os.getenv("CTRACE_OPENAI_MODEL", "openai/gpt-oss-120b:free")
+CTRACE_OPENAI_VISION = os.getenv("CTRACE_OPENAI_VISION", "0") == "1"
+
+
+def llm_provider() -> str:
+    """'anthropic', 'openai' or '' (offline). Claude wins when both keys are set."""
+    if ANTHROPIC_API_KEY:
+        return "anthropic"
+    if OPENAI_API_KEY:
+        return "openai"
+    return ""
+
+
 def llm_enabled() -> bool:
-    return bool(ANTHROPIC_API_KEY)
+    return bool(llm_provider())
+
+
+def report_model() -> str:
+    return CTRACE_OPENAI_MODEL if llm_provider() == "openai" else CTRACE_REPORT_MODEL
 
 
 # ---- Tariff sanity ranges (BDT per unit). Used to catch mis-read quantities.

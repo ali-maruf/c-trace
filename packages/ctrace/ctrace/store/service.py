@@ -10,16 +10,19 @@ so totals match the prototype. How many of those rows a human has confirmed is r
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from dataclasses import dataclass
 from datetime import datetime
+from functools import lru_cache
 from typing import Any
 from uuid import UUID
 
 import numpy as np
 import pandas as pd
 
+from .. import config
 from ..calculate import build_ledger, monthly_summary
 from ..extraction import ACTIVITIES, CANONICAL_UNIT, extract_document, normalize_period, sha256_bytes
 from ..llm import LLMCall
@@ -264,6 +267,13 @@ def log_llm_calls(conn: Conn, calls: list[LLMCall]) -> None:
               c.stop_reason, c.error) for c in calls])
 
 
+@lru_cache(maxsize=1)
+def sample_bill_hashes() -> frozenset[str]:
+    """The fictional demo factory's shipped bills. They are always read by the deterministic parser, so every demo
+    sandbox gets the same numbers and spends no LLM quota (each visitor's sandbox re-reads all 65)."""
+    return frozenset(hashlib.sha256(p.read_bytes()).hexdigest() for p in config.BILLS_DIR.glob("*.pdf"))
+
+
 def run_extraction(conn: Conn, org_id: str, user_id: str | None, document_id: str, storage: Storage | None = None) -> dict:
     """Read a stored document, record the extraction, create/refresh its activity record, rebuild the ledger.
 
@@ -273,7 +283,8 @@ def run_extraction(conn: Conn, org_id: str, user_id: str | None, document_id: st
     with org_tx(conn, org_id, user_id):
         doc, data = document_bytes(conn, document_id, storage)
     calls: list[LLMCall] = []
-    rec = extract_document(data, doc["file_name"], doc["media_type"], cache=DbCache(conn, org_id, user_id), on_call=calls.append)
+    rec = extract_document(data, doc["file_name"], doc["media_type"], cache=DbCache(conn, org_id, user_id), on_call=calls.append,
+                           offline=doc["sha256"] in sample_bill_hashes())
     if rec.doc_sha256 != doc["sha256"]:
         raise RuntimeError(f"Stored bytes for document {document_id} do not match its SHA-256")
     method, _, model = rec.extraction_method.partition(":")

@@ -83,7 +83,10 @@ redacted before any text is sent to a model or stored as evidence; the eval set 
 **Foundation models:** Anthropic Claude (Haiku 5.5 for extraction, escalating to Sonnet 5.5 below 0.7 confidence; Sonnet 5.5
 for report narratives and the Copilot), called only when `ANTHROPIC_API_KEY` is set. Models never produce an emissions
 number: they return printed text with evidence; code parses, checks and calculates; every LLM sentence passes a number
-guard. The hosted demo currently runs **offline** (rules-based extraction, template narratives, intent-based Copilot).
+guard. Without an Anthropic key, C-Trace can use OpenAI's open-weight **gpt-oss-120b** through any OpenAI-compatible
+host (free tier on OpenRouter), under the same rules; it reads text only, so photos still need Claude or a vision model.
+With no key at all it runs **offline** (rules-based extraction, template narratives, intent-based Copilot). The demo
+factory's 65 sample bills always use the deterministic parser.
 
 **Own models:** C-Trace Verifier v2 (scikit-learn HistGradientBoosting + quantile scale model + split-conformal band).
 Held-out metrics, fairness table and limitations: [models/MODEL_CARD.md](../models/MODEL_CARD.md).

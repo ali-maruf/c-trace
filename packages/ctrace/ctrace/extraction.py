@@ -231,7 +231,7 @@ def extract_pdf_rules(path_or_bytes: str | Path | bytes, doc_name: str | None = 
     text = pdf_text(data)
     if not text.strip():
         rec = BillRecord(doc_name=name, doc_sha256=sha256_bytes(data))
-        rec.issues.append("No text layer found (scanned image). Set ANTHROPIC_API_KEY to enable C-Trace vision extraction.")
+        rec.issues.append("No text layer found (scanned image). Configure a vision-capable LLM to read scans.")
         return rec
     return parse_text(text, name, sha256_bytes(data))
 
@@ -276,13 +276,19 @@ def cross_check(llm: BillRecord, rules: BillRecord) -> BillRecord:
 
 
 def extract_document(data: bytes, doc_name: str, media_type: str = "application/pdf", *,
-                     cache: Any = None, on_call: Callable[..., None] | None = None, client: Any = None) -> BillRecord:
-    """Entry point used by the app, the API and the worker. Uses Claude when a key is configured and falls
-    back to the offline parser (saying so) if the LLM path fails."""
-    if config.llm_enabled() or client is not None:
+                     cache: Any = None, on_call: Callable[..., None] | None = None, client: Any = None,
+                     offline: bool = False) -> BillRecord:
+    """Entry point used by the app, the API and the worker. Uses the LLM when a key is configured and falls
+    back to the offline parser (saying so) if the LLM path fails. `offline=True` forces the rules path."""
+    if not offline and (config.llm_enabled() or client is not None):
         from .extraction_llm import extract_with_llm
+        from .llm_openai import TextOnlyModel
         try:
             rec = extract_with_llm(data, doc_name, media_type, cache=cache, on_call=on_call, client=client)
+        except TextOnlyModel as exc:  # e.g. a photo for a text-only model: the same outcome as offline, said plainly
+            rec = extract_pdf_rules(data, doc_name) if media_type == "application/pdf" else BillRecord(doc_name, sha256_bytes(data))
+            rec.issues.append(f"{exc} Upload a PDF with a text layer, or configure a vision model.")
+            return rec
         except Exception as exc:  # fall back to the offline path, but say so
             rec = extract_pdf_rules(data, doc_name) if media_type == "application/pdf" else BillRecord(doc_name, sha256_bytes(data))
             rec.issues.append(f"LLM extraction failed ({type(exc).__name__}); used offline parser.")
@@ -296,6 +302,6 @@ def extract_document(data: bytes, doc_name: str, media_type: str = "application/
         return rec
     if media_type != "application/pdf":
         rec = BillRecord(doc_name=doc_name, doc_sha256=sha256_bytes(data))
-        rec.issues.append("Photo bills need the LLM path. Set ANTHROPIC_API_KEY, or upload a PDF.")
+        rec.issues.append("Photo bills need the LLM path (a vision-capable model), or upload a PDF.")
         return rec
     return extract_pdf_rules(data, doc_name)

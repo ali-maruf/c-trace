@@ -6,7 +6,8 @@ The Copilot never computes or invents a number. It calls tools that return verif
 
 Two engines:
   * offline (default, no API key): intent routing + tool calls + templated answers in English or Bangla;
-  * Claude (with ANTHROPIC_API_KEY): a tool-use loop over the same tools, with the same citation and number checks.
+  * LLM (Claude with ANTHROPIC_API_KEY, or an OpenAI-compatible model with OPENAI_API_KEY): a tool-use loop over the
+    same tools, with the same citation and number checks.
 Questions outside the factory's data and the guidance are declined.
 """
 from __future__ import annotations
@@ -278,8 +279,64 @@ def answer_llm(question: str, tools: Tools, language: str, client: Any, max_step
     yield {"type": "answer", "answer": fallback.as_dict()}
 
 
+def answer_llm_openai(question: str, tools: Tools, language: str, client: Any, max_steps: int = 5) -> Iterator[dict]:
+    """The same loop over an OpenAI-compatible endpoint (function calling). Same citation and number checks."""
+    from .llm import load_prompt
+    from .llm_openai import to_openai_tools
+
+    prompt = load_prompt(config.CTRACE_COPILOT_PROMPT)
+    model = config.CTRACE_OPENAI_MODEL
+    lang_line = "Answer in Bangla." if language == "bn" else "Answer in English."
+    messages: list[dict] = [{"role": "system", "content": f"{prompt.system}\n\n{lang_line}"}, {"role": "user", "content": question}]
+    calls: list[dict] = []
+    results: list[Any] = []
+    for _ in range(max_steps):
+        resp = client.chat(model=model, max_tokens=3000, tools=to_openai_tools(TOOL_SPECS), tool_choice="auto", messages=messages)
+        msg = resp["choices"][0]["message"]
+        if msg.get("refusal"):
+            break
+        uses = msg.get("tool_calls") or []
+        if not uses:
+            text = (msg.get("content") or "").strip()
+            cites = [{"type": k, "id": v, "label": v} for k, v in CITE_RE.findall(text)]
+            if not cites:
+                break  # an uncited answer is not accepted
+            ans = _guarded(Answer(CITE_RE.sub("", text).strip(), language, cites, calls, method=f"llm:{model}"), results)
+            yield {"type": "answer", "answer": ans.as_dict()}
+            return
+        messages.append({"role": "assistant", "content": msg.get("content") or "", "tool_calls": uses})
+        for u in uses:
+            name = u["function"]["name"]
+            try:
+                args = json.loads(u["function"].get("arguments") or "{}")
+                out = tools[name](**args) if name in tools else {"error": f"unknown tool {name}"}
+            except (json.JSONDecodeError, TypeError) as exc:
+                args, out = {}, {"error": f"bad arguments: {exc}"}
+            calls.append({"tool": name, "args": args})
+            results.append(out)
+            yield {"type": "tool", "tool": name, "args": args}
+            messages.append({"role": "tool", "tool_call_id": u["id"], "content": json.dumps(out, default=str)[:20000]})
+    fallback = answer_offline(question, tools, language)
+    fallback.method = "offline (LLM answer not accepted)"
+    yield {"type": "answer", "answer": fallback.as_dict()}
+
+
 def ask(question: str, tools: Tools, language: str | None = None, client: Any = None) -> Iterator[dict]:
     lang = language or detect_language(question)
+    from .llm_openai import OpenAICompat
+
+    if isinstance(client, OpenAICompat) or (client is None and config.llm_provider() == "openai"):
+        from .llm_openai import client as openai_client
+        try:
+            yield from answer_llm_openai(question, tools, lang, client or openai_client())
+            return
+        except Exception:  # a free endpoint can be rate-limited or down: answer offline instead of failing
+            ans = answer_offline(question, tools, lang)
+            ans.method = "offline (LLM unavailable)"
+            for c in ans.tool_calls:
+                yield {"type": "tool", **c}
+            yield {"type": "answer", "answer": ans.as_dict()}
+            return
     if client is not None or config.llm_enabled():
         from .llm import client as default_client
         yield from answer_llm(question, tools, lang, client or default_client())

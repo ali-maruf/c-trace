@@ -32,6 +32,11 @@ Optional: copy `.env.example` to `.env` and set `ANTHROPIC_API_KEY` to turn on C
 scanned and Bangla bills) and LLM-written report narratives. Every LLM narrative must pass the C-Trace **number guard**:
 any figure that isn't in the verified data is rejected.
 
+Free alternative: set `OPENAI_API_KEY` instead (default host OpenRouter, model OpenAI's open-weight `gpt-oss-120b:free`;
+`CTRACE_OPENAI_BASE_URL` and `CTRACE_OPENAI_MODEL` point it at Groq, Cerebras or OpenAI). That model reads text only: it
+handles PDF text layers (including garbled Bangla), narratives and the Copilot; photos need `CTRACE_OPENAI_VISION=1` and a
+vision model. The demo factory's 65 sample bills always use the deterministic parser, so the demo numbers never change.
+
 ## The 3-minute demo story
 1. **Extract & review**: 65 sample bills (gas, grid electricity, diesel; Jan 2025 – Oct 2026) are read automatically. C-Trace
    flags `2025-09_natural_gas.pdf`: the implied tariff is BDT 315/m³ instead of ~31.5, so it suggests the right quantity
@@ -94,7 +99,7 @@ API (repo root, `asgi.py`), with `/api/*` routed to the API ([docs/plans/phase-1
    `CTRACE_STORAGE=db`, `CTRACE_INLINE_JOBS=1`, `CTRACE_MIGRATE_ON_START=1`, `CTRACE_API_PREFIX=/api`,
    `CTRACE_DB_PREPARE=0`, `CTRACE_DB_POOL_MIN=0`, `CTRACE_DB_POOL_MAX=3`.
 3. `npx vercel deploy --prod`. Migrations and factor sync run on the first request; `/api/health` reports the database.
-4. Optional: `ANTHROPIC_API_KEY` for Claude extraction and narratives; `SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL` and
+4. Optional: `ANTHROPIC_API_KEY` for Claude extraction and narratives (or the free `OPENAI_API_KEY` path above); `SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL` and
    `NEXT_PUBLIC_SUPABASE_ANON_KEY` for real sign-in (without them the hosted app offers the demo sandbox only).
 
 **Streamlit Community Cloud (offline fallback).** New app → `apps/demo-streamlit/streamlit_app.py`; it installs from

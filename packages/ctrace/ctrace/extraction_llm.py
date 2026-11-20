@@ -1,4 +1,4 @@
-"""C-Trace extraction with Claude: strict schema, verbatim evidence, cache, escalation.
+"""C-Trace extraction with an LLM (Claude, or an OpenAI-compatible model): strict schema, verbatim evidence, cache, escalation.
 
 Flow per document:
   1. For each model in the cascade (config: extraction model, then escalation model), look up the cache
@@ -17,6 +17,9 @@ from . import config
 from .extraction import ACTIVITIES, BillRecord, finalize, normalize_period, sha256_bytes
 from .llm import Cache, OnCall, cache_key, content_block, load_prompt, structured_call
 from .llm import client as default_client
+from .llm_openai import OpenAICompat, document_content
+from .llm_openai import client as openai_client
+from .llm_openai import structured_call as openai_structured_call
 from .textnorm import evidence_supports, parse_number, redact_personal
 
 CRITICAL = ("document_type", "billing_period", "consumption_quantity")
@@ -25,6 +28,8 @@ INSTRUCTION = "Read this document and return the C-Trace bill fields."
 
 
 def cascade_models() -> list[str]:
+    if config.llm_provider() == "openai":
+        return [config.CTRACE_OPENAI_MODEL]
     models = [config.CTRACE_EXTRACTION_MODEL]
     esc = config.CTRACE_EXTRACTION_ESCALATION_MODEL
     if esc and esc not in models:
@@ -83,8 +88,15 @@ def extract_with_llm(data: bytes, doc_name: str, media_type: str, *, cache: Cach
     """`models` overrides the configured cascade (the eval scores each model on its own)."""
     prompt = load_prompt(config.CTRACE_EXTRACTION_PROMPT)
     sha = sha256_bytes(data)
-    llm = client or default_client()
-    content = [content_block(data, media_type), {"type": "text", "text": INSTRUCTION}]
+    openai = config.llm_provider() == "openai" if client is None else isinstance(client, OpenAICompat)
+    if openai:
+        llm: Any = client or openai_client()
+        content = [*document_content(data, media_type), {"type": "text", "text": INSTRUCTION}]
+        call = openai_structured_call
+    else:
+        llm = client or default_client()
+        content = [content_block(data, media_type), {"type": "text", "text": INSTRUCTION}]
+        call = structured_call
     best: BillRecord | None = None
     attempts: list[dict] = []
     for model in models or cascade_models():
@@ -93,7 +105,7 @@ def extract_with_llm(data: bytes, doc_name: str, media_type: str, *, cache: Cach
         cached = payload is not None
         if payload is None:
             try:
-                payload = structured_call(llm, model=model, prompt=prompt, content=content, purpose="extract_bill",
+                payload = call(llm, model=model, prompt=prompt, content=content, purpose="extract_bill",
                                           document_sha256=sha, on_call=on_call)
             except Exception as exc:
                 attempts.append({"model": model, "cached": False, "error": f"{type(exc).__name__}: {exc}"[:300]})
