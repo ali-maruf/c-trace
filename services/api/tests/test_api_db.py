@@ -683,6 +683,14 @@ def test_copilot_answers_cite_and_pass_the_number_guard(client, owner_conn, toke
     bn = ask(client, fid, h, "জুলাই ২০২৬-এ নির্গমন কেন বেড়েছে?")
     assert bn["language"] == "bn" and "নির্গমন" in bn["text"] and bn["citations"][0]["id"].startswith("CT-2026-07-")
 
+    y2025 = ask(client, fid, h, "What were total emissions in 2025?")
+    with org_tx(owner_conn, d["org_id"], d["user_id"]):
+        tot25 = tools_for(owner_conn, fid)["get_summary"]("2025")["totals"]
+    assert "2025-01" in y2025["text"] and "2025-12" in y2025["text"] and "(12 months)" in y2025["text"]
+    assert f"{tot25['total_tco2e']:,.1f}" in y2025["text"]
+    y2025bn = ask(client, fid, h, "২০২৫ সালে মোট নির্গমন কত?")
+    assert "12 মাস" in y2025bn["text"]
+
     off = ask(client, fid, h, "Write me a poem about football")
     assert off["declined"] and not off["citations"]
 

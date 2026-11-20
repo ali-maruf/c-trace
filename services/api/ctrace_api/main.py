@@ -51,6 +51,7 @@ def ensure_started(app: FastAPI) -> None:
                 sync_factors(conn)
                 sync_kb(conn)
         pool = ConnectionPool(url, min_size=int(os.getenv("CTRACE_DB_POOL_MIN", "1")), max_size=int(os.getenv("CTRACE_DB_POOL_MAX", "10")),
+                              max_idle=float(os.getenv("CTRACE_DB_POOL_MAX_IDLE_S", "600")),
                               open=True, kwargs={"autocommit": True, "row_factory": dict_row}, configure=configure)
         app.state.pool = pool
         log.info("startup", extra={"fields": {"env": environment(), "llm": config.llm_enabled()}})

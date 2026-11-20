@@ -168,10 +168,43 @@ def parse_text(text: str, doc_name: str, sha: str) -> BillRecord:
             rec.period = normalize_period(next(x for x in g if x))
         else:
             setattr(rec, name, next(x for x in g if x).strip())
+    found += _bangla_fallbacks(norm, rec)
     rec.activity = infer_activity(text)
     rec.language = detect_language(text)
     rec.extraction_confidence = round(found / len(FIELD_PATTERNS), 2)
     return finalize(rec)
+
+
+# Some Bangla PDF fonts don't map conjuncts back to Unicode, so labels such as "ব্যবহৃত" (used) or "মোট" (total) come
+# out garbled (e.g. `ব"বBত`, `Eমাট`). The unit words and "টাকা" usually survive, so these fallbacks anchor on them.
+_BN_QTY_UNIT = re.compile(r"[:\-]\s*" + _NUM + r"\s*(ঘনমিটার|কিলোওয়াট[^\s\d,;:]*|লিটার)(?=\s|$)", re.M)
+_BN_READING = re.compile(r"রিডিং\s*[:\-]\s*" + _NUM)
+_BN_TAKA = re.compile(r"টাকা\s*[:\-]\s*(?:৳\s*)?" + _NUM)
+
+
+def _bangla_fallbacks(norm: str, rec: BillRecord) -> int:
+    """Fill quantity / amount when the Bangla labels are unreadable. Lower confidence than a label match; the meter
+    readings (current − previous) raise it when they agree. Returns how many fields were filled."""
+    filled = 0
+    if rec.quantity is None:
+        hits = [m for m in _BN_QTY_UNIT.finditer(norm) if "রিডিং" not in norm[norm.rfind("\n", 0, m.start()) + 1:m.start()]]
+        if hits:
+            m = hits[0]
+            rec.quantity, rec.unit = parse_number(m.group(1)), m.group(2)
+            line = norm[norm.rfind("\n", 0, m.start()) + 1: (norm.find("\n", m.end()) + 1 or len(norm) + 1) - 1]
+            rec.evidence["quantity"] = redact_personal(line.strip()[:120])
+            readings = [r for r in (parse_number(x) for x in _BN_READING.findall(norm)) if r is not None]
+            agree = len(readings) == 2 and rec.quantity is not None and abs(abs(readings[1] - readings[0]) - rec.quantity) < 0.5
+            rec.field_confidence["quantity"] = 0.85 if agree else 0.6
+            filled += 1
+    if rec.amount_bdt is None:
+        amounts = [a for a in (parse_number(x) for x in _BN_TAKA.findall(norm)) if a is not None]
+        if amounts:
+            rec.amount_bdt = max(amounts)
+            rec.evidence["amount_bdt"] = f"টাকা: {rec.amount_bdt:,.2f}"
+            rec.field_confidence["amount_bdt"] = 0.6
+            filled += 1
+    return filled
 
 
 _PREBASE = "িেৈ"  # Bangla vowel signs drawn before their consonant

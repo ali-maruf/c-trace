@@ -86,3 +86,6 @@ compose-up: ## Postgres + API + worker + Streamlit via Docker (infra/docker-comp
 clean: ## Remove caches (keeps the trained model)
 	rm -rf .pytest_cache .mypy_cache .ruff_cache data/training_fleet.csv
 	find . -name __pycache__ -type d -prune -not -path './.venv/*' -exec rm -rf {} +
+
+smoke-live: ## Scenario test against the hosted demo (or BASE=http://localhost:8000-style URL)
+	$(UV) run python scripts/smoke_live.py $(BASE)

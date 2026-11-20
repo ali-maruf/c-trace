@@ -15,7 +15,8 @@ def tools_for(conn: Conn, factory_id: str) -> Tools:
     service.get_factory(conn, factory_id)
 
     def get_summary(period: str = "") -> dict:
-        s = service.summary(conn, factory_id, period or None, period or None)
+        lo, hi = (f"{period}-01", f"{period}-12") if len(period) == 4 else (period or None, period or None)   # YYYY = that year
+        s = service.summary(conn, factory_id, lo, hi)
         keys = ("natural_gas", "grid_electricity", "diesel", "total_t")
         months = [{k: m.get(k) for k in ("period", *keys, "scope1_t", "scope2_t", "kgco2e_per_piece")} for m in s["months"]]
         for prev, cur in zip(months, months[1:], strict=False):   # month-over-month change, computed here (code), not by the Copilot

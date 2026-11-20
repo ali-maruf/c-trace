@@ -93,7 +93,7 @@ A weekly job compares the spread of recent calibrated residuals (all factories' 
 
 | Method | Model(s) | Run | activity | period | quantity | unit | amount_bdt | bill_no | Critical | Privacy leaks | Dropped digit flagged |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| rules | — | 2026-11-19 | 61% | 53% | 53% | 61% | 50% | 61% | 50% | 0 | yes |
+| rules | — | 2026-11-20 | 61% | 53% | 61% | 61% | 61% | 61% | 53% | 0 | yes |
 | haiku | — | not run (needs ANTHROPIC_API_KEY) | — | — | — | — | — | — | — | — | — |
 | sonnet | — | not run (needs ANTHROPIC_API_KEY) | — | — | — | — | — | — | — | — | — |
 | cascade | — | not run (needs ANTHROPIC_API_KEY) | — | — | — | — | — | — | — | — | — |
@@ -102,7 +102,7 @@ Critical accuracy by document group:
 
 | Method | pdf_text/bn | pdf_text/en | pdf_text/mixed | photo/bn | photo/en |
 |---|---|---|---|---|---|
-| rules | 25% (n=4) | 94% (n=16) | 100% (n=2) | 0% (n=10) | 0% (n=4) |
+| rules | 50% (n=4) | 94% (n=16) | 100% (n=2) | 0% (n=10) | 0% (n=4) |
 
 Read these numbers carefully:
 - **The eval set is synthetic and was built by the same team as the rules parser.** Its English layouts are ones the rules parser was written for, so the rules row is an upper bound for those layouts, not an estimate for real bills. Its value is the comparison across methods, Bangla, photos and the traps.

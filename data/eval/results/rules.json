@@ -2,23 +2,23 @@
  "method": "rules",
  "models": [],
  "prompt_version": null,
- "run_at": "2026-11-19T18:38:09+00:00",
+ "run_at": "2026-11-20T00:52:02+00:00",
  "n_bills": 36,
  "composition": "16 pdf text (en), 10 photo (bn), 4 photo (en), 4 pdf text (bn), 2 pdf text (mixed)",
  "metrics": {
   "field_accuracy": {
    "activity": 0.6111,
    "period": 0.5278,
-   "quantity": 0.5278,
+   "quantity": 0.6111,
    "unit": 0.6111,
-   "amount_bdt": 0.5,
+   "amount_bdt": 0.6111,
    "bill_no": 0.6111
   },
-  "critical_accuracy": 0.5,
+  "critical_accuracy": 0.5278,
   "by_group": {
    "pdf_text/bn": {
     "n": 4,
-    "critical_accuracy": 0.25
+    "critical_accuracy": 0.5
    },
    "pdf_text/en": {
     "n": 16,
@@ -920,25 +920,23 @@
    "correct": {
     "activity": true,
     "period": true,
-    "quantity": false,
+    "quantity": true,
     "unit": true,
-    "amount_bdt": false,
+    "amount_bdt": true,
     "bill_no": true
    },
-   "critical": false,
-   "confidence": 0.33,
+   "critical": true,
+   "confidence": 0.67,
    "method": "rules",
    "predicted": {
     "activity": "natural_gas",
     "period": "2026-01",
-    "quantity": null,
+    "quantity": 27515.0,
     "unit": "m3",
-    "amount_bdt": null,
+    "amount_bdt": 884177.08,
     "bill_no": "661005"
    },
-   "issues": [
-    "Consumption quantity missing."
-   ],
+   "issues": [],
    "privacy_leak": false,
    "tariff_flagged": false,
    "escalated": false
@@ -950,24 +948,23 @@
    "correct": {
     "activity": true,
     "period": false,
-    "quantity": false,
+    "quantity": true,
     "unit": true,
-    "amount_bdt": false,
+    "amount_bdt": true,
     "bill_no": true
    },
    "critical": false,
-   "confidence": 0.33,
+   "confidence": 0.67,
    "method": "rules",
    "predicted": {
     "activity": "grid_electricity",
     "period": null,
-    "quantity": null,
+    "quantity": 176796.0,
     "unit": "kWh",
-    "amount_bdt": null,
+    "amount_bdt": 2074756.39,
     "bill_no": "661105"
    },
    "issues": [
-    "Consumption quantity missing.",
     "Billing period missing."
    ],
    "privacy_leak": false,
@@ -983,18 +980,18 @@
     "period": true,
     "quantity": true,
     "unit": true,
-    "amount_bdt": false,
+    "amount_bdt": true,
     "bill_no": true
    },
    "critical": true,
-   "confidence": 0.5,
+   "confidence": 0.67,
    "method": "rules",
    "predicted": {
     "activity": "diesel",
     "period": "2025-06",
     "quantity": 1207.0,
     "unit": "litre",
-    "amount_bdt": null,
+    "amount_bdt": 135581.17,
     "bill_no": "661205"
    },
    "issues": [],
@@ -1009,24 +1006,23 @@
    "correct": {
     "activity": true,
     "period": false,
-    "quantity": false,
+    "quantity": true,
     "unit": true,
-    "amount_bdt": false,
+    "amount_bdt": true,
     "bill_no": true
    },
    "critical": false,
-   "confidence": 0.33,
+   "confidence": 0.67,
    "method": "rules",
    "predicted": {
     "activity": "grid_electricity",
     "period": null,
-    "quantity": null,
+    "quantity": 207793.0,
     "unit": "kWh",
-    "amount_bdt": null,
+    "amount_bdt": 2369003.04,
     "bill_no": "661305"
    },
    "issues": [
-    "Consumption quantity missing.",
     "Billing period missing."
    ],
    "privacy_leak": false,

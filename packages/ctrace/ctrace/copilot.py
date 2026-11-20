@@ -25,8 +25,8 @@ Tools = dict[str, Callable[..., Any]]
 LABEL = {"en": {"natural_gas": "natural gas", "grid_electricity": "grid electricity", "diesel": "diesel"},
          "bn": {"natural_gas": "প্রাকৃতিক গ্যাস", "grid_electricity": "গ্রিড বিদ্যুৎ", "diesel": "ডিজেল"}}
 TOOL_SPECS = [
-    {"name": "get_summary", "description": "Monthly and total Scope 1/2 emissions for the factory (tCO2e), optionally for one month (YYYY-MM).",
-     "input_schema": {"type": "object", "properties": {"period": {"type": "string", "description": "YYYY-MM, or empty for all months"}},
+    {"name": "get_summary", "description": "Monthly and total Scope 1/2 emissions for the factory (tCO2e), optionally for one month (YYYY-MM) or one year (YYYY).",
+     "input_schema": {"type": "object", "properties": {"period": {"type": "string", "description": "YYYY-MM, YYYY, or empty for all months"}},
                       "required": ["period"], "additionalProperties": False}},
     {"name": "get_ledger", "description": "Trace ledger rows (trace_id, quantity, tCO2e, bill) for a month and optionally one energy source.",
      "input_schema": {"type": "object", "properties": {"period": {"type": "string"}, "activity": {"type": "string", "enum": ["", "natural_gas", "grid_electricity", "diesel"]}},
@@ -204,6 +204,9 @@ def answer_offline(question: str, tools: Tools, language: str | None = None) -> 
         return _guarded(Answer(text, lang, cites, calls), results)
 
     if "total" in intents and not ("guidance" in intents and "scope" in question.lower() and "what" in question.lower()):
+        year = re.search(r"\b(20\d{2})\b", normalize_text(question))
+        if year and any(k.startswith(year.group(1)) for k in known):
+            summary = call("get_summary", period=year.group(1))   # "in 2025" means that year, not the whole ledger
         tot = summary.get("totals") or {}
         if not tot:
             return _guarded(Answer("No emissions in the ledger yet." if lang == "en" else "লেজারে এখনও কোনো নির্গমন নেই।", lang, [], calls), results)
