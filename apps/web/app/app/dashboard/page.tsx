@@ -63,6 +63,13 @@ export default function Dashboard() {
           </>
         )}
       </div>
+      {sel.data && (
+        <p className="mt-2 text-sm text-slate">
+          Calculated from {n(sel.data.data_status.documents)} bills
+          {sel.data.data_status.unconfirmed_records ? ` (${n(sel.data.data_status.unconfirmed_records)} not yet confirmed by a person)` : ""}.{" "}
+          <Link href="/app/bills" className="font-medium text-teal hover:underline">See every bill →</Link>
+        </p>
+      )}
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_320px]">
         <Card>

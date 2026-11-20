@@ -45,7 +45,7 @@ export function EvidencePanel({ documentId, highlight }: { documentId: string; h
   return (
     <div>
       <p className="mb-2 text-xs text-slate">
-        Read by <span className="font-medium text-ink">{ext.method === "llm" ? `Claude (${ext.model})` : "the offline parser"}</span>
+        Read by <span className="font-medium text-ink">{ext.method === "llm" ? `an AI model (${ext.model})` : "the offline parser"}</span>
         {ext.prompt_version && <> · prompt {ext.prompt_version}</>} · confidence {ext.confidence === null ? "—" : `${Math.round(ext.confidence * 100)}%`}
       </p>
       <dl className="divide-y divide-line rounded-lg border border-line text-sm">

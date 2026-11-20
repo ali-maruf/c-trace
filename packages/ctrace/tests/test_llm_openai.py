@@ -134,3 +134,16 @@ def test_copilot_endpoint_down_answers_offline(openai_on, monkeypatch):
     host = Host((429, {}), (429, {}), (429, {}))
     ans = list(copilot.ask("Write me a poem about football", TOOLS, client=host.client()))[-1]["answer"]
     assert ans["declined"] is True and "unavailable" in ans["method"]
+
+
+def test_slow_model_gives_template_narrative(openai_on, monkeypatch):
+    from ctrace import report
+
+    def slow(request):
+        raise httpx.ReadTimeout("free model queue", request=request)
+    monkeypatch.setattr("ctrace.llm_openai.client", lambda **kw: OpenAICompat("https://llm.test/v1", "k", transport=httpx.MockTransport(slow)))
+    monkeypatch.setattr(report, "retriever", lambda: type("R", (), {"search": lambda self, q, k=3: []})())
+    facts = {"factory": "Demo", "period_from": "2025-01", "period_to": "2025-12", "total_tco2e": 8662.7}
+    monkeypatch.setattr(report, "template_narrative", lambda fmt, f: "template text")
+    out = report.generate("buyer", facts)
+    assert out["method"] == "template" and out["narrative"] == "template text"

@@ -331,7 +331,7 @@ def ask(question: str, tools: Tools, language: str | None = None, client: Any = 
     if isinstance(client, OpenAICompat) or (client is None and config.llm_provider() == "openai"):
         from .llm_openai import client as openai_client
         try:
-            yield from answer_llm_openai(question, tools, lang, client or openai_client())
+            yield from answer_llm_openai(question, tools, lang, client or openai_client(timeout_s=config.CTRACE_COPILOT_TIMEOUT_S, attempts=1))
             return
         except Exception as exc:  # a free endpoint can be rate-limited or down: answer offline instead of failing
             logging.getLogger("ctrace.copilot").warning("llm.copilot_failed", extra={"fields": {"error": f"{type(exc).__name__}: {exc}"[:400]}})

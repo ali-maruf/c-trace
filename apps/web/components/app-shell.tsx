@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, ClipboardCheck, FileSearch, FileText, Gauge, LogOut, Menu, MessageSquare, Settings, ShieldCheck, TrendingDown, Upload, X } from "lucide-react";
+import { BarChart3, ClipboardCheck, FileSearch, FileText, Files, Gauge, LogOut, Menu, MessageSquare, Settings, ShieldCheck, TrendingDown, Upload, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -14,6 +14,7 @@ import { Loading } from "./ui";
 const NAV = [
   { href: "/app/dashboard", label: "Dashboard", icon: BarChart3 },
   { href: "/app/upload", label: "Upload bills", icon: Upload },
+  { href: "/app/bills", label: "Bills", icon: Files },
   { href: "/app/review", label: "Review queue", icon: ClipboardCheck },
   { href: "/app/trace", label: "Trace ledger", icon: FileSearch },
   { href: "/app/verify", label: "Verify", icon: ShieldCheck },

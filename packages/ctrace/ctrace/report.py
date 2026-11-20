@@ -136,7 +136,9 @@ def llm_narrative(fmt: str, facts: dict, guidance: list) -> str | None:
     if config.llm_provider() == "openai":
         from .llm_openai import client as openai_client
         from .llm_openai import text_call
-        text = text_call(openai_client(), model=config.openai_models()[0], system=system, user=user, max_tokens=6000)
+        # a report must not wait on a slow free model: past the limit the template narrative is used
+        text = text_call(openai_client(timeout_s=config.CTRACE_NARRATIVE_TIMEOUT_S, attempts=1), model=config.openai_models()[0],
+                         system=system, user=user, max_tokens=6000)
     else:
         import anthropic
 

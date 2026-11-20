@@ -9,6 +9,14 @@ test("C-Trace demo flow", async ({ page, browser }) => {
   await expect(page.getByText("Total Scope 1 + 2")).toBeVisible();
   await expect(page.getByText(/Live demo sandbox/)).toBeVisible();
 
+  // bills: every bill behind the total is listed and opens with what was read
+  await page.getByRole("link", { name: /See every bill/ }).click();
+  await expect(page.getByText("65 of 65 bills")).toBeVisible();
+  await expect(page.getByText("15,297.9 tCO₂e")).toBeVisible();
+  await page.getByRole("row", { name: /2025-09_natural_gas\.pdf/ }).click();
+  await expect(page.getByText("What C-Trace read")).toBeVisible();
+  await expect(page.getByText(/Implied tariff/).first()).toBeVisible();
+
   // review: the dropped-digit bill comes first, with a suggestion that needs an explicit accept
   await page.goto("/app/review");
   await expect(page.getByText("2025-09_natural_gas.pdf").first()).toBeVisible();

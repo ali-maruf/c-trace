@@ -54,6 +54,8 @@ CTRACE_COPILOT_PROMPT = os.getenv("CTRACE_COPILOT_PROMPT", "copilot/v1")
 # Server-side refusal fallback for models that support it ("default" or "off").
 CTRACE_LLM_FALLBACKS = os.getenv("CTRACE_LLM_FALLBACKS", "default")
 CTRACE_LLM_TIMEOUT_S = float(os.getenv("CTRACE_LLM_TIMEOUT_S", "120"))
+CTRACE_COPILOT_TIMEOUT_S = float(os.getenv("CTRACE_COPILOT_TIMEOUT_S", "30"))  # per model step; then the offline answer
+CTRACE_NARRATIVE_TIMEOUT_S = float(os.getenv("CTRACE_NARRATIVE_TIMEOUT_S", "20"))  # report narrative; then the template
 CTRACE_LLM_RATE_PER_MIN = int(os.getenv("CTRACE_LLM_RATE_PER_MIN", "20"))  # per user, LLM-backed endpoints
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 

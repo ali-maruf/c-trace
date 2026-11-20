@@ -27,9 +27,11 @@ class TextOnlyModel(ValueError):
 class OpenAICompat:
     """Minimal client for the chat-completions wire format (no SDK, so any compatible host works)."""
 
-    def __init__(self, base_url: str | None = None, api_key: str | None = None, transport: httpx.BaseTransport | None = None):
+    def __init__(self, base_url: str | None = None, api_key: str | None = None, transport: httpx.BaseTransport | None = None,
+                 timeout_s: float | None = None, attempts: int = 3):
         self.base_url = (base_url or config.CTRACE_OPENAI_BASE_URL).rstrip("/")
-        self.http = httpx.Client(timeout=config.CTRACE_LLM_TIMEOUT_S, transport=transport, headers={
+        self.attempts = attempts
+        self.http = httpx.Client(timeout=timeout_s or config.CTRACE_LLM_TIMEOUT_S, transport=transport, headers={
             "Authorization": f"Bearer {api_key or config.OPENAI_API_KEY}",
             "X-Title": "C-Trace",  # OpenRouter's app attribution; ignored elsewhere
         })
@@ -41,9 +43,9 @@ class OpenAICompat:
         if "openrouter.ai" in self.base_url:
             body.setdefault("reasoning", {"effort": config.CTRACE_OPENAI_REASONING})  # reasoning models: keep tokens for the answer
         last: Exception | None = None
-        for attempt in range(3):
+        for attempt in range(self.attempts):
             r = self.http.post(f"{self.base_url}/chat/completions", json=body)
-            if r.status_code in (429, 500, 502, 503, 504) and attempt < 2:
+            if r.status_code in (429, 500, 502, 503, 504) and attempt < self.attempts - 1:
                 last = httpx.HTTPStatusError(f"{r.status_code}", request=r.request, response=r)
                 time.sleep(min(float(r.headers.get("retry-after", 2 ** attempt)), 8))
                 continue
@@ -53,8 +55,8 @@ class OpenAICompat:
         raise last or RuntimeError("chat completion failed")
 
 
-def client() -> OpenAICompat:
-    return OpenAICompat()
+def client(timeout_s: float | None = None, attempts: int = 3) -> OpenAICompat:
+    return OpenAICompat(timeout_s=timeout_s, attempts=attempts)
 
 
 def document_content(data: bytes, media_type: str) -> list[dict]:
