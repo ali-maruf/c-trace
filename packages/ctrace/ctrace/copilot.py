@@ -303,6 +303,8 @@ def answer_llm_openai(question: str, tools: Tools, language: str, client: Any, m
             if not cites:
                 break  # an uncited answer is not accepted
             ans = _guarded(Answer(CITE_RE.sub("", text).strip(), language, cites, calls, method=f"llm:{model}"), results)
+            if "number guard blocked" in ans.method:
+                break  # a free model's draft used a figure the tools did not return: give the verified offline answer
             yield {"type": "answer", "answer": ans.as_dict()}
             return
         messages.append({"role": "assistant", "content": msg.get("content") or "", "tool_calls": uses})

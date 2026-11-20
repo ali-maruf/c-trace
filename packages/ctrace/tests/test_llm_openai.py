@@ -126,7 +126,7 @@ def test_copilot_invented_number_is_blocked(openai_on):
     tool_call = [{"id": "c1", "type": "function", "function": {"name": "get_summary", "arguments": '{"period": "2025"}'}}]
     host = Host(chat_reply(None, tool_call, "tool_calls"), chat_reply("2025 total: 9,999.9 tCO2e [trace:CT-2025-01-GAS]"))
     ans = list(copilot.ask("What were total emissions in 2025?", TOOLS, client=host.client()))[-1]["answer"]
-    assert "9,999.9" not in ans["text"]
+    assert "9,999.9" not in ans["text"] and ans["method"].startswith("offline")
 
 
 def test_copilot_endpoint_down_answers_offline(openai_on, monkeypatch):
