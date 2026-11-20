@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import socket
 import time
 import traceback
@@ -110,6 +111,7 @@ def run_pending(conn: Conn, worker_id: str | None = None, max_jobs: int | None =
                 time.sleep(0.2)   # another worker holds one of this organisation's jobs
                 continue
             break
+        t_job = time.monotonic()
         try:
             result = run_job(conn, job)
         except Exception as exc:
@@ -118,4 +120,5 @@ def run_pending(conn: Conn, worker_id: str | None = None, max_jobs: int | None =
         else:
             complete(conn, job["id"], result)
             counts["done"] += 1
+            logging.getLogger("ctrace.jobs").info("job.done", extra={"fields": {"id": job["id"], "s": round(time.monotonic() - t_job, 2)}})
     return counts

@@ -54,7 +54,12 @@ def clean_url(url: str) -> str:
         return url  # key=value conninfo
     parts = urlsplit(url)
     query = [(k, v) for k, v in parse_qsl(parts.query) if k in _LIBPQ_PARAMS]
-    return urlunsplit(parts._replace(query=urlencode(query)))
+    netloc = parts.netloc
+    # Supabase's pooler serves transaction mode on 6543 and session mode on 5432 (same host, IPv4). C-Trace uses session
+    # mode: it behaves like a direct connection (pipelined executemany, server settings), and the pool per instance is small.
+    if (parts.hostname or "").endswith(".pooler.supabase.com") and parts.port == 6543 and os.getenv("CTRACE_DB_SESSION_POOLER", "1") == "1":
+        netloc = netloc[: netloc.rfind(":")] + ":5432"
+    return urlunsplit(parts._replace(netloc=netloc, query=urlencode(query)))
 
 
 def database_url() -> str:

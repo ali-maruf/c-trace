@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import os
 import threading
+import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
@@ -124,14 +125,17 @@ async def invalid(_: Request, exc: ValueError) -> JSONResponse:
 
 @app.get(f"{API_PREFIX}/health", tags=["auth"], summary="Liveness and dependency status (no auth)")
 def health(request: Request) -> dict:
-    db = "ok"
+    db, db_ms = "ok", None
     try:
         pool = getattr(request.app.state, "pool", None)
         if pool is None:
             raise RuntimeError("not started")
         with pool.connection() as conn:
+            t = time.perf_counter()
             conn.execute("select 1")
+            db_ms = round((time.perf_counter() - t) * 1000, 1)
     except Exception as exc:  # report, don't crash the health check
         db = f"error: {type(exc).__name__}"
     return {"service": BRAND, "version": __version__, "llm": config.llm_enabled(),
-            "model": config.verifier_path().exists(), "database": db}
+            "model": config.verifier_path().exists(), "database": db,
+            "database_roundtrip_ms": db_ms}

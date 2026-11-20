@@ -6,6 +6,7 @@ demo token can never reach real data. Sandboxes older than SANDBOX_TTL are delet
 """
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 
@@ -52,15 +53,22 @@ def purge_expired(owner_conn: Conn) -> int:
     return len(rows)
 
 
+log = logging.getLogger("ctrace.demo")
+
+
 def start_sandbox(owner_conn: Conn) -> dict:
     """Owner connection. New sandbox with the demo factory loaded through the normal upload path, plus a token."""
+    t0 = time.monotonic()
     purge_expired(owner_conn)
+    log.info("demo.purged", extra={"fields": {"s": round(time.monotonic() - t0, 2)}})
     uid = str(uuid.uuid4())
     email = f"demo+{uid[:8]}@c-trace.test"
     service.ensure_user(owner_conn, uid, email, "Demo visitor (fictional)")
     org_id = service.create_organization(owner_conn, "Nodi Knit Composite Ltd. — live demo sandbox (fictional)", uid, is_demo=True)
     fid = load_demo_factory(owner_conn, org_id, uid)
+    log.info("demo.loaded", extra={"fields": {"s": round(time.monotonic() - t0, 2)}})
     counts = run_pending(owner_conn, f"demo:{uid[:8]}", org_id=org_id)   # only this sandbox's bills, and wait for all of them
+    log.info("demo.extracted", extra={"fields": {"s": round(time.monotonic() - t0, 2), **counts}})
     now = int(time.time())
     token = jwt.encode({"sub": uid, "email": email, "aud": "authenticated", "iss": DEMO_ISSUER, "role": "authenticated",
                         "iat": now, "exp": now + TOKEN_HOURS * 3600}, signing_key(owner_conn), algorithm="ES256")

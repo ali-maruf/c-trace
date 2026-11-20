@@ -418,3 +418,11 @@ them no rows, because every C-Trace policy is `to ctrace_app`, but C-Trace never
 and KB sync, and the demo flow were run on a fresh Postgres cluster as a non-superuser owner with `CREATEROLE` (how
 Supabase's `postgres` role works), with `CTRACE_DB_PREPARE=0`: the owner can `SET ROLE ctrace_app`, no grants remain for
 `anon`/`authenticated`, and the demo flags exactly 2025-09 and 2026-07.
+
+### D60. Supabase through Vercel's integration, functions pinned to Mumbai
+The Supabase project (`c-trace-db`, free plan, Mumbai) was created through Vercel's Supabase integration, so no credential
+passed through anyone's hands: Vercel injects `POSTGRES_URL` and friends. `database_url()` falls back to `POSTGRES_URL`,
+drops non-libpq URL parameters (`supa=`), and switches Supabase's transaction pooler (6543) to its session pooler (5432),
+which behaves like a direct connection. The project's function default region was `iad1`, so every query crossed from the
+US to Mumbai (186 ms round-trip, about 4 s per bill, a demo start over 300 s). The region is now `bom1`: 1.9 ms per
+round-trip, and a demo start takes about 7 s. `/api/health` reports `database_roundtrip_ms` so this is visible.
