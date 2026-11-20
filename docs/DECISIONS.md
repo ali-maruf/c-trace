@@ -438,3 +438,12 @@ the schema in the versioned `prompts/openai_json/v1.md`. gpt-oss reads text only
 photos are refused with a plain message unless `CTRACE_OPENAI_VISION=1`. A rate-limited or failing endpoint falls back
 to the offline parser or the offline Copilot, saying so. The demo factory's sample bills (matched by SHA-256) always use
 the deterministic parser: each sandbox re-reads all 65, which would exhaust a free quota and change the pitch numbers.
+
+### D62. OpenRouter free models change; sign-in by password
+On the live test, OpenRouter answered 404 "This model is unavailable for free" for `gpt-oss-120b:free`: no OpenAI model
+is free there any more. The defaults are now models on OpenRouter's free list on 20 Nov 2026 that support tools and JSON
+schemas: `nvidia/nemotron-3.5-super-vl:free` (also reads images, so photo bills work) with `google/gemma-4-31b-it:free`
+as OpenRouter's fallback (`models` parameter). Free lists change without notice, so the model is an env var, and a
+failing model still falls back to the offline parser and Copilot, with the reason in the bill's issues and the log.
+Email one-time codes were unreliable on Supabase's built-in mailer (low hourly limit), so sign-in is email + password
+for accounts an administrator creates in the Supabase dashboard; the page offers no self sign-up.

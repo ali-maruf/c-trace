@@ -59,13 +59,17 @@ PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
 
 # OpenAI-compatible provider (any /chat/completions endpoint: OpenRouter, Groq, Cerebras, OpenAI). Used only when
-# ANTHROPIC_API_KEY is not set. The default is OpenAI's open-weight gpt-oss-120b on OpenRouter's free tier, a text-only
-# model: it reads PDF text layers; photo bills need CTRACE_OPENAI_VISION=1 and a vision model.
+# ANTHROPIC_API_KEY is not set. CTRACE_OPENAI_MODEL is one model id or a comma-separated list: the first is asked, and
+# on OpenRouter the rest are its fallbacks when the first is unavailable. Defaults: models free on OpenRouter in Nov 2026
+# (Nemotron reads images, so photo bills work; set CTRACE_OPENAI_VISION=0 for a text-only model).
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 CTRACE_OPENAI_BASE_URL = os.getenv("CTRACE_OPENAI_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/")
-CTRACE_OPENAI_MODEL = os.getenv("CTRACE_OPENAI_MODEL", "openai/gpt-oss-120b:free")
-CTRACE_OPENAI_VISION = os.getenv("CTRACE_OPENAI_VISION", "0") == "1"
+CTRACE_OPENAI_MODEL = os.getenv("CTRACE_OPENAI_MODEL", "nvidia/nemotron-3.5-super-vl:free,google/gemma-4-31b-it:free")
+CTRACE_OPENAI_VISION = os.getenv("CTRACE_OPENAI_VISION", "1") == "1"
 
+
+def openai_models() -> list[str]:
+    return [m.strip() for m in CTRACE_OPENAI_MODEL.split(",") if m.strip()]
 
 def llm_provider() -> str:
     """'anthropic', 'openai' or '' (offline). Claude wins when both keys are set."""
@@ -81,7 +85,7 @@ def llm_enabled() -> bool:
 
 
 def report_model() -> str:
-    return CTRACE_OPENAI_MODEL if llm_provider() == "openai" else CTRACE_REPORT_MODEL
+    return openai_models()[0] if llm_provider() == "openai" else CTRACE_REPORT_MODEL
 
 
 # ---- Tariff sanity ranges (BDT per unit). Used to catch mis-read quantities.

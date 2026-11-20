@@ -45,7 +45,7 @@ jobs:
       - name: requirements.txt matches uv.lock
         run: |
           uv export --frozen --no-hashes --no-dev --all-packages --all-extras --format requirements-txt -o /tmp/req.txt
-          diff -u requirements.txt /tmp/req.txt
+          diff -u <(grep -v '^#' requirements.txt) <(grep -v '^#' /tmp/req.txt)  # the header names the output path
 
   web:
     name: Web app (lint, types, unit tests, build)

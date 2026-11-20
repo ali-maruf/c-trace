@@ -19,7 +19,7 @@ flowchart LR
   end
   subgraph Supabase["Supabase (Postgres 16 + pgvector)"]
     DB[(org-scoped tables<br/>RLS on org_id)]
-    AU[Auth<br/>email one-time code]
+    AU[Auth<br/>email + password, admin-created]
   end
   POWER[(NASA POWER<br/>monthly T2M)]
   CT[(Climate TRACE v7<br/>facility benchmark)]

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import logging
 import re
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -65,6 +66,9 @@ class BillRecord:
 
 
 # ---------------------------------------------------------------- helpers
+log = logging.getLogger("ctrace.extraction")
+
+
 def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -291,7 +295,8 @@ def extract_document(data: bytes, doc_name: str, media_type: str = "application/
             return rec
         except Exception as exc:  # fall back to the offline path, but say so
             rec = extract_pdf_rules(data, doc_name) if media_type == "application/pdf" else BillRecord(doc_name, sha256_bytes(data))
-            rec.issues.append(f"LLM extraction failed ({type(exc).__name__}); used offline parser.")
+            log.warning("llm.extraction_failed", extra={"fields": {"doc": doc_name, "error": f"{type(exc).__name__}: {exc}"[:400]}})
+            rec.issues.append(f"LLM extraction failed ({type(exc).__name__}: {str(exc)[:160]}); used offline parser.")
             return rec
         if media_type == "application/pdf":
             try:

@@ -32,10 +32,11 @@ Optional: copy `.env.example` to `.env` and set `ANTHROPIC_API_KEY` to turn on C
 scanned and Bangla bills) and LLM-written report narratives. Every LLM narrative must pass the C-Trace **number guard**:
 any figure that isn't in the verified data is rejected.
 
-Free alternative: set `OPENAI_API_KEY` instead (default host OpenRouter, model OpenAI's open-weight `gpt-oss-120b:free`;
-`CTRACE_OPENAI_BASE_URL` and `CTRACE_OPENAI_MODEL` point it at Groq, Cerebras or OpenAI). That model reads text only: it
-handles PDF text layers (including garbled Bangla), narratives and the Copilot; photos need `CTRACE_OPENAI_VISION=1` and a
-vision model. The demo factory's 65 sample bills always use the deterministic parser, so the demo numbers never change.
+Free alternative: set `OPENAI_API_KEY` to an OpenRouter key instead. The default models are free on OpenRouter
+(`nvidia/nemotron-3.5-super-vl:free`, then `google/gemma-4-31b-it:free` as fallback; `CTRACE_OPENAI_MODEL` takes a
+comma-separated list, `CTRACE_OPENAI_BASE_URL` points it at Groq, Cerebras or OpenAI). Nemotron reads images, so photo
+bills work; set `CTRACE_OPENAI_VISION=0` for a text-only model. The demo factory's 65 sample bills always use the
+deterministic parser, so the demo numbers never change.
 
 ## The 3-minute demo story
 1. **Extract & review**: 65 sample bills (gas, grid electricity, diesel; Jan 2025 – Oct 2026) are read automatically. C-Trace

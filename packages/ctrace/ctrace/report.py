@@ -136,7 +136,7 @@ def llm_narrative(fmt: str, facts: dict, guidance: list) -> str | None:
     if config.llm_provider() == "openai":
         from .llm_openai import client as openai_client
         from .llm_openai import text_call
-        text = text_call(openai_client(), model=config.CTRACE_OPENAI_MODEL, system=system, user=user, max_tokens=1500)
+        text = text_call(openai_client(), model=config.openai_models()[0], system=system, user=user, max_tokens=1500)
     else:
         import anthropic
 

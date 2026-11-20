@@ -13,23 +13,20 @@ export default function LoginPage() {
   const sb = supabase();
   const router = useRouter();
   const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [step, setStep] = useState<"email" | "code">("email");
+  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
 
-  async function sendCode() {
+  // Accounts are created by an administrator (Supabase dashboard → Authentication → Add user); there is no self sign-up.
+  async function signIn() {
     if (!sb) return;
     setBusy(true); setError(null);
-    const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
-    setBusy(false);
-    if (error) setError(error); else setStep("code");
-  }
-  async function verify() {
-    if (!sb) return;
-    setBusy(true); setError(null);
-    const { data, error } = await sb.auth.verifyOtp({ email, token: code, type: "email" });
-    if (error || !data.session) { setBusy(false); setError(error ?? new Error("Sign-in failed")); return; }
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    if (error || !data.session) {
+      setBusy(false);
+      setError(error?.message === "Invalid login credentials" ? new Error("Wrong email or password.") : (error ?? new Error("Sign-in failed")));
+      return;
+    }
     setSession({ token: data.session.access_token, kind: "supabase", expiresAt: (data.session.expires_at ?? 0) * 1000 });
     try {
       await api("/v1/me");
@@ -47,19 +44,13 @@ export default function LoginPage() {
         <h1 className="text-lg font-semibold">Sign in</h1>
         {!sb ? (
           <p className="mt-2 text-sm text-slate">Sign-in is not configured on this deployment yet. Use the <Link href="/" className="text-teal hover:underline">live demo</Link> to try C-Trace with a fictional factory.</p>
-        ) : step === "email" ? (
-          <form className="mt-4 space-y-3" onSubmit={(e) => { e.preventDefault(); sendCode(); }}>
-            <Field label="Work email"><input type="email" required autoComplete="email" className={inputCls} value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
-            {error ? <ErrorState error={error} /> : null}
-            <Button type="submit" busy={busy} className="w-full">Email me a sign-in code</Button>
-          </form>
         ) : (
-          <form className="mt-4 space-y-3" onSubmit={(e) => { e.preventDefault(); verify(); }}>
-            <p className="text-sm text-slate">We sent a code to {email}.</p>
-            <Field label="Code"><input inputMode="numeric" autoComplete="one-time-code" required className={inputCls} value={code} onChange={(e) => setCode(e.target.value.trim())} /></Field>
+          <form className="mt-4 space-y-3" onSubmit={(e) => { e.preventDefault(); signIn(); }}>
+            <Field label="Email"><input type="email" required autoComplete="username" className={inputCls} value={email} onChange={(e) => setEmail(e.target.value.trim())} /></Field>
+            <Field label="Password"><input type="password" required autoComplete="current-password" className={inputCls} value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
             {error ? <ErrorState error={error} /> : null}
             <Button type="submit" busy={busy} className="w-full">Sign in</Button>
-            <button type="button" className="w-full text-sm text-teal hover:underline" onClick={() => setStep("email")}>Use a different email</button>
+            <p className="text-xs text-slate">Accounts are set up by your C-Trace administrator. No account? Try the <Link href="/" className="text-teal hover:underline">live demo</Link>.</p>
           </form>
         )}
       </Card>

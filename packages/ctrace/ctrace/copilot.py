@@ -13,6 +13,7 @@ Questions outside the factory's data and the guidance are declined.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
@@ -285,7 +286,7 @@ def answer_llm_openai(question: str, tools: Tools, language: str, client: Any, m
     from .llm_openai import to_openai_tools
 
     prompt = load_prompt(config.CTRACE_COPILOT_PROMPT)
-    model = config.CTRACE_OPENAI_MODEL
+    model = config.openai_models()[0]
     lang_line = "Answer in Bangla." if language == "bn" else "Answer in English."
     messages: list[dict] = [{"role": "system", "content": f"{prompt.system}\n\n{lang_line}"}, {"role": "user", "content": question}]
     calls: list[dict] = []
@@ -330,7 +331,8 @@ def ask(question: str, tools: Tools, language: str | None = None, client: Any = 
         try:
             yield from answer_llm_openai(question, tools, lang, client or openai_client())
             return
-        except Exception:  # a free endpoint can be rate-limited or down: answer offline instead of failing
+        except Exception as exc:  # a free endpoint can be rate-limited or down: answer offline instead of failing
+            logging.getLogger("ctrace.copilot").warning("llm.copilot_failed", extra={"fields": {"error": f"{type(exc).__name__}: {exc}"[:400]}})
             ans = answer_offline(question, tools, lang)
             ans.method = "offline (LLM unavailable)"
             for c in ans.tool_calls:

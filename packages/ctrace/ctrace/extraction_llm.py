@@ -29,7 +29,7 @@ INSTRUCTION = "Read this document and return the C-Trace bill fields."
 
 def cascade_models() -> list[str]:
     if config.llm_provider() == "openai":
-        return [config.CTRACE_OPENAI_MODEL]
+        return config.openai_models()[:1]
     models = [config.CTRACE_EXTRACTION_MODEL]
     esc = config.CTRACE_EXTRACTION_ESCALATION_MODEL
     if esc and esc not in models:

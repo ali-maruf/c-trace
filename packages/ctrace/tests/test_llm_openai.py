@@ -46,7 +46,7 @@ def test_provider_selection(monkeypatch):
     monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "")
     assert config.llm_provider() == "" and not config.llm_enabled()
     monkeypatch.setattr(config, "OPENAI_API_KEY", "k")
-    assert config.llm_provider() == "openai" and cascade_models() == [config.CTRACE_OPENAI_MODEL]
+    assert config.llm_provider() == "openai" and cascade_models() == [config.openai_models()[0]]
     monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "k")
     assert config.llm_provider() == "anthropic"  # Claude wins when both are set
 
@@ -56,7 +56,7 @@ def test_pdf_goes_as_text_and_numbers_are_parsed_in_code(fakes, openai_on):
     calls: list = []
     rec = extract_with_llm(BILL_PDF.read_bytes(), "bn.pdf", "application/pdf", client=host.client(), on_call=calls.append)
     assert (rec.activity, rec.period, rec.quantity, rec.amount_bdt) == ("natural_gas", "2025-09", 32044.0, 1009386.0)
-    assert rec.extraction_method == f"llm:{config.CTRACE_OPENAI_MODEL}"
+    assert rec.extraction_method == f"llm:{config.openai_models()[0]}"
     req = host.requests[0]
     assert req["response_format"]["type"] == "json_schema" and "tool_choice" not in req
     assert req["messages"][1]["content"][0]["text"].startswith("DOCUMENT TEXT")
@@ -94,6 +94,14 @@ def test_offline_flag_never_calls_the_model(openai_on, monkeypatch):
     assert extract_document(BILL_PDF.read_bytes(), BILL_PDF.name, offline=True).extraction_method == "rules"
 
 
+def test_openrouter_gets_the_fallback_list(fakes, openai_on, monkeypatch):
+    monkeypatch.setattr(config, "CTRACE_OPENAI_MODEL", "a/one:free, b/two:free")
+    host = Host(chat_reply(json.dumps(fakes.bangla_gas_bill(), ensure_ascii=False)))
+    cli = OpenAICompat("https://openrouter.ai/api/v1", "k", transport=httpx.MockTransport(host))
+    extract_with_llm(BILL_PDF.read_bytes(), "bn.pdf", "application/pdf", client=cli)
+    assert host.requests[0]["model"] == "a/one:free" and host.requests[0]["models"] == ["a/one:free", "b/two:free"]
+
+
 def test_first_json_object_tolerates_preamble():
     assert first_json_object('Here you go: {"a": 1} ') == {"a": 1}
     with pytest.raises(ValueError):
@@ -109,7 +117,7 @@ def test_copilot_tool_loop_cites_and_is_number_guarded(openai_on):
     events = list(copilot.ask("What were total emissions in 2025?", TOOLS, client=host.client()))
     ans = events[-1]["answer"]
     assert ans["citations"] == [{"type": "trace", "id": "CT-2025-01-GAS", "label": "CT-2025-01-GAS"}]
-    assert "8,123.4" in ans["text"] and ans["method"] == f"llm:{config.CTRACE_OPENAI_MODEL}"
+    assert "8,123.4" in ans["text"] and ans["method"] == f"llm:{config.openai_models()[0]}"
     assert host.requests[0]["tools"][0]["function"]["name"] == "get_summary"
     assert host.requests[1]["messages"][-1] == {"role": "tool", "tool_call_id": "c1", "content": json.dumps(TOOLS["get_summary"]("2025"))}
 

@@ -35,6 +35,9 @@ class OpenAICompat:
         })
 
     def chat(self, **body: Any) -> dict:
+        fallbacks = [m for m in config.openai_models() if m != body.get("model")]
+        if "openrouter.ai" in self.base_url and fallbacks and body.get("model") in config.openai_models():
+            body["models"] = [body["model"], *fallbacks]  # OpenRouter tries these in order if one is unavailable
         last: Exception | None = None
         for attempt in range(3):
             r = self.http.post(f"{self.base_url}/chat/completions", json=body)
