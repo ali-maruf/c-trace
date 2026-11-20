@@ -9,7 +9,7 @@ reductions with statistics, so factories can earn from cutting emissions.
 
 **Live demo:** https://c-trace-xi.vercel.app → *Try the live demo* (a private sandbox with a fictional factory; no sign-up).
 Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · Finals script: [docs/PITCH_DEMO.md](docs/PITCH_DEMO.md) ·
-Model card: [models/MODEL_CARD.md](models/MODEL_CARD.md) · Decisions: [docs/DECISIONS.md](docs/DECISIONS.md)
+Submission: [docs/SUBMISSION.md](docs/SUBMISSION.md) · Model card: [models/MODEL_CARD.md](models/MODEL_CARD.md) · Decisions: [docs/DECISIONS.md](docs/DECISIONS.md)
 
 ## Quick start (about 2 minutes, no API key needed)
 
